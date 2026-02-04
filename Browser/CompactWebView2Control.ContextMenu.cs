@@ -43,7 +43,7 @@ namespace DynamicBrowserPanels
             separator1b = new ToolStripSeparator();
             
             mnuNewTab = new ToolStripMenuItem("+ New Tab");
-            mnuNewTab.Click += async (s, e) => await AddNewTab(_homeUrl);
+            mnuNewTab.Click += async (s, e) => await AddNewTab();
             
             mnuCloseTab = new ToolStripMenuItem("✕ Close Tab");
             mnuCloseTab.Click += (s, e) => CloseCurrentTab();
