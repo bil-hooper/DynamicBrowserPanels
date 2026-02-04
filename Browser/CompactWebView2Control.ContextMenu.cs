@@ -42,6 +42,11 @@ namespace DynamicBrowserPanels
 
             separator1b = new ToolStripSeparator();
             
+            mnuOpenNotepad = new ToolStripMenuItem("📝 Open Notepad");
+            mnuOpenNotepad.Click += (s, e) => OpenNotepad();
+            
+            new ToolStripSeparator();
+            
             mnuNewTab = new ToolStripMenuItem("+ New Tab");
             mnuNewTab.Click += async (s, e) => await AddNewTab();
             
@@ -96,6 +101,8 @@ namespace DynamicBrowserPanels
                 mnuOpenMedia,
                 mnuPlaylistControls,
                 separator1b,
+                mnuOpenNotepad,
+                new ToolStripSeparator(),
                 mnuNewTab, mnuCloseTab, mnuRenameTab,
                 new ToolStripSeparator(),
                 mnuMoveTabLeft, mnuMoveTabRight,
@@ -166,6 +173,34 @@ namespace DynamicBrowserPanels
         private void OpenPasswordManager()
         {
             NavigateToUrl("https://passwords.google.com");
+        }
+
+        /// <summary>
+        /// Opens the notepad in the current tab
+        /// </summary>
+        private void OpenNotepad()
+        {
+            try
+            {
+                // Load saved notepad content
+                var notepadData = NotepadManager.LoadNotepad();
+                
+                // Create HTML file with the content
+                var htmlPath = NotepadHelper.CreateNotepadHtml(notepadData.Content);
+                
+                // Navigate to the notepad
+                var url = LocalMediaHelper.FilePathToUrl(htmlPath);
+                NavigateToUrl(url);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"Failed to open notepad: {ex.Message}",
+                    "Notepad Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error
+                );
+            }
         }
     }
 }

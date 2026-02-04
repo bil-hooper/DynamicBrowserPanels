@@ -220,7 +220,17 @@ namespace DynamicBrowserPanels
                 // Parse the JSON to get the action
                 if (json.Contains("\"action\""))
                 {
-                    if (json.Contains("\"previous\""))
+                    if (json.Contains("\"saveNotepad\""))
+                    {
+                        // Handle notepad save
+                        HandleNotepadSave(json);
+                    }
+                    else if (json.Contains("\"exportNotepad\""))
+                    {
+                        // Handle notepad export
+                        HandleNotepadExport(json);
+                    }
+                    else if (json.Contains("\"previous\""))
                     {
                         // Handle previous track
                         if (_playlist != null && _playlist.Count > 0)
@@ -254,6 +264,91 @@ namespace DynamicBrowserPanels
             catch
             {
                 // Ignore message parsing errors
+            }
+        }
+
+        /// <summary>
+        /// Handles saving notepad content from JavaScript
+        /// </summary>
+        private void HandleNotepadSave(string json)
+        {
+            try
+            {
+                // Extract content from JSON
+                var contentStart = json.IndexOf("\"content\":\"") + 11;
+                var contentEnd = json.LastIndexOf("\"");
+                
+                if (contentStart > 11 && contentEnd > contentStart)
+                {
+                    var content = json.Substring(contentStart, contentEnd - contentStart);
+                    
+                    // Unescape JSON content
+                    content = System.Text.RegularExpressions.Regex.Unescape(content);
+                    
+                    var notepadData = new NotepadData
+                    {
+                        Content = content,
+                        HasUnsavedChanges = false
+                    };
+                    
+                    NotepadManager.SaveNotepad(notepadData);
+                }
+            }
+            catch
+            {
+                // Ignore save errors - user will see in UI
+            }
+        }
+
+        /// <summary>
+        /// Handles exporting notepad content to file
+        /// </summary>
+        private void HandleNotepadExport(string json)
+        {
+            try
+            {
+                // Extract content from JSON
+                var contentStart = json.IndexOf("\"content\":\"") + 11;
+                var contentEnd = json.LastIndexOf("\"");
+                
+                if (contentStart > 11 && contentEnd > contentStart)
+                {
+                    var content = json.Substring(contentStart, contentEnd - contentStart);
+                    
+                    // Unescape JSON content
+                    content = System.Text.RegularExpressions.Regex.Unescape(content);
+                    
+                    // Show save file dialog
+                    using (var dialog = new SaveFileDialog())
+                    {
+                        dialog.Filter = "Text Files (*.txt)|*.txt|All Files (*.*)|*.*";
+                        dialog.DefaultExt = "txt";
+                        dialog.FileName = $"Notes_{DateTime.Now:yyyy-MM-dd_HHmmss}.txt";
+                        dialog.Title = "Export Notepad";
+                        
+                        if (dialog.ShowDialog() == DialogResult.OK)
+                        {
+                            if (NotepadManager.ExportToFile(content, dialog.FileName))
+                            {
+                                MessageBox.Show(
+                                    $"Notes exported successfully to:\n{dialog.FileName}",
+                                    "Export Complete",
+                                    MessageBoxButtons.OK,
+                                    MessageBoxIcon.Information
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"Failed to export notepad: {ex.Message}",
+                    "Export Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error
+                );
             }
         }
 

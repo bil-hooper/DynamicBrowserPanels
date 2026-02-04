@@ -21,6 +21,7 @@ namespace DynamicBrowserPanels
         private ToolStripSeparator separator1;
         private ToolStripMenuItem mnuOpenMedia;
         private ToolStripSeparator separator1b;
+        private ToolStripMenuItem mnuOpenNotepad;
         private ToolStripMenuItem mnuNewTab;
         private ToolStripMenuItem mnuCloseTab;
         private ToolStripMenuItem mnuRenameTab;
