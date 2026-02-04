@@ -238,15 +238,12 @@ namespace DynamicBrowserPanels
             if (autoplayAttempted) return;
             autoplayAttempted = true;
             
-            console.log('Attempting autoplay...');
-            
             // Strategy: Try immediate play with promise handling
             const playPromise = player.play();
             
             if (playPromise !== undefined) {{
                 playPromise
                     .then(() => {{
-                        console.log('✓ Autoplay succeeded');
                         autoplayNotice.style.display = 'none';
                     }})
                     .catch((error) => {{
@@ -266,35 +263,28 @@ namespace DynamicBrowserPanels
         
         // Try to play again when user clicks the notice
         function tryPlayAgain() {{
-            console.log('User clicked play notice');
             player.play()
                 .then(() => {{
-                    console.log('✓ Manual play succeeded');
                     autoplayNotice.style.display = 'none';
                 }})
                 .catch((error) => {{
-                    console.error('✗ Manual play failed:', error);
                     alert('Unable to play media: ' + error.message);
                 }});
         }}
         
         // Multiple autoplay triggers
         if (shouldAutoplay) {{
-            console.log('Autoplay is enabled, setting up triggers...');
-            
             // Trigger 1: Immediate attempt when DOM is ready
             if (document.readyState === 'complete') {{
                 attemptAutoplay();
             }} else {{
                 window.addEventListener('load', () => {{
-                    console.log('Window loaded, attempting autoplay');
                     attemptAutoplay();
                 }});
             }}
             
             // Trigger 2: On canplay event
             player.addEventListener('canplay', () => {{
-                console.log('canplay event fired');
                 if (!autoplayAttempted) {{
                     attemptAutoplay();
                 }}
@@ -302,7 +292,6 @@ namespace DynamicBrowserPanels
             
             // Trigger 3: On loadeddata event
             player.addEventListener('loadeddata', () => {{
-                console.log('loadeddata event fired');
                 if (!autoplayAttempted) {{
                     attemptAutoplay();
                 }}
@@ -311,7 +300,6 @@ namespace DynamicBrowserPanels
             // Trigger 4: Delayed fallback (100ms)
             setTimeout(() => {{
                 if (!autoplayAttempted && player.paused) {{
-                    console.log('Delayed fallback trigger');
                     attemptAutoplay();
                 }}
             }}, 100);
@@ -319,11 +307,9 @@ namespace DynamicBrowserPanels
             // Trigger 5: Extra delayed fallback (500ms)
             setTimeout(() => {{
                 if (player.paused && player.readyState >= 2) {{
-                    console.log('Extra delayed fallback trigger');
                     const promise = player.play();
                     if (promise) {{
                         promise.catch(() => {{
-                            console.log('Extra fallback also blocked');
                             autoplayNotice.style.display = 'block';
                         }});
                     }}
@@ -348,13 +334,11 @@ namespace DynamicBrowserPanels
         
         player.addEventListener('error', function(e) {{
             info.innerHTML = '<span class=""error"">Error loading media file</span>';
-            console.error('Media error:', e);
             autoplayNotice.style.display = 'none';
         }});
         
         // Auto-advance to next track when current one ends
         player.addEventListener('ended', function() {{
-            console.log('Media ended');
             if (hasPlaylist) {{
                 nextTrack();
             }}
@@ -362,7 +346,6 @@ namespace DynamicBrowserPanels
         
         // Hide autoplay notice when playback starts
         player.addEventListener('play', function() {{
-            console.log('Playback started');
             autoplayNotice.style.display = 'none';
         }});
         
@@ -405,8 +388,6 @@ namespace DynamicBrowserPanels
                 }}
             }}
         }});
-        
-        console.log('Media player initialized. Autoplay:', shouldAutoplay, 'Playlist:', hasPlaylist);
     </script>
 </body>
 </html>";
@@ -1139,7 +1120,6 @@ namespace DynamicBrowserPanels
                     const j = Math.floor(Math.random() * (i + 1));
                     [playOrder[i], playOrder[j]] = [playOrder[j], playOrder[i]];
                 }}
-                console.log('Shuffled play order:', playOrder);
             }} else {{
                 console.log('Sequential play order');
             }}
@@ -1173,8 +1153,6 @@ namespace DynamicBrowserPanels
             currentPlaylistIndex = playlistIndex;
             const fileIndex = playOrder[currentPlaylistIndex];
             const file = mediaFiles[fileIndex];
-            
-            console.log(`Loading track: playlist index ${{playlistIndex}}, file index ${{fileIndex}}, name: ${{file.name}}`);
             
             // Hide both players
             videoPlayer.style.display = 'none';
@@ -1243,11 +1221,9 @@ namespace DynamicBrowserPanels
             if (nextIndex >= playOrder.length) {{
                 if (repeat) {{
                     nextIndex = 0;
-                    console.log('Playlist finished, repeating from start');
                 }} else {{
                     currentPlayer?.pause();
                     info.textContent = '✓ Playlist finished';
-                    console.log('Playlist finished');
                     return;
                 }}
             }}
@@ -1261,7 +1237,6 @@ namespace DynamicBrowserPanels
             if (prevIndex < 0) {{
                 if (repeat) {{
                     prevIndex = playOrder.length - 1;
-                    console.log('At start, jumping to end (repeat enabled)');
                 }} else {{
                     prevIndex = 0;
                 }}
@@ -1285,7 +1260,6 @@ namespace DynamicBrowserPanels
         
         function toggleShuffle() {{
             shuffle = !shuffle;
-            console.log('Shuffle toggled:', shuffle);
             
             // Remember current file
             const currentFileIndex = playOrder[currentPlaylistIndex];
@@ -1305,7 +1279,6 @@ namespace DynamicBrowserPanels
         
         function toggleRepeat() {{
             repeat = !repeat;
-            console.log('Repeat toggled:', repeat);
             updateButtons();
         }}
         

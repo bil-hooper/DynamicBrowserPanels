@@ -182,15 +182,33 @@ namespace DynamicBrowserPanels
         {
             try
             {
-                // Load saved notepad content
-                var notepadData = NotepadManager.LoadNotepad();
+                var currentTab = GetCurrentTab();
+                if (currentTab == null) return;
+                
+                // Get the next unique instance number
+                int instanceNumber = NotepadHelper.GetNextNotepadInstance();
+                
+                // Store the instance number in the tab
+                currentTab.NotepadInstance = instanceNumber;
+                
+                // Load saved notepad content for this instance
+                var notepadData = NotepadManager.LoadNotepad(instanceNumber);
                 
                 // Create HTML file with the content
-                var htmlPath = NotepadHelper.CreateNotepadHtml(notepadData.Content);
+                var htmlPath = NotepadHelper.CreateNotepadHtml(notepadData.Content, instanceNumber);
                 
                 // Navigate to the notepad
                 var url = LocalMediaHelper.FilePathToUrl(htmlPath);
                 NavigateToUrl(url);
+                
+                // Set custom tab name
+                int selectedIndex = tabControl.SelectedIndex;
+                if (selectedIndex >= 0 && selectedIndex < _tabCustomNames.Count)
+                {
+                    _tabCustomNames[selectedIndex] = $"Notepad #{instanceNumber}";
+                    currentTab.CustomName = $"Notepad #{instanceNumber}";
+                    tabControl.TabPages[selectedIndex].Text = $"Notepad #{instanceNumber}";
+                }
             }
             catch (Exception ex)
             {
