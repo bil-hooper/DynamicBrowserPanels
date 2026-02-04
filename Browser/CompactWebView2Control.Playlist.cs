@@ -1,0 +1,512 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Drawing;
+using System.IO;
+using System.Linq;
+using System.Windows.Forms;
+
+namespace DynamicBrowserPanels
+{
+    public partial class CompactWebView2Control
+    {
+        /// <summary>
+        /// Opens a file dialog to select and play a media file
+        /// </summary>
+        private void OpenMediaFile()
+        {
+            using (var openFileDialog = new OpenFileDialog())
+            {
+                openFileDialog.Title = "Select Media File";
+                openFileDialog.Filter = 
+                    "All Media Files|*.mp4;*.webm;*.ogv;*.ogg;*.mp3;*.wav;*.aac;*.m4a;*.opus;*.flac|" +
+                    "Video Files|*.mp4;*.webm;*.ogv;*.ogg|" +
+                    "Audio Files|*.mp3;*.wav;*.aac;*.m4a;*.opus;*.flac;*.ogg|" +
+                    "All Files|*.*";
+                openFileDialog.FilterIndex = 1;
+                openFileDialog.RestoreDirectory = true;
+
+                if (openFileDialog.ShowDialog() == DialogResult.OK)
+                {
+                    var filePath = openFileDialog.FileName;
+                    
+                    // Validate the media file
+                    if (!LocalMediaHelper.ValidateMediaFile(filePath, out string errorMessage))
+                    {
+                        MessageBox.Show(
+                            errorMessage,
+                            "Cannot Open Media File",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Error
+                        );
+                        
+                        // Suggest conversion if format is unsupported
+                        var suggestion = LocalMediaHelper.GetConversionSuggestion(filePath);
+                        if (suggestion != null)
+                        {
+                            MessageBox.Show(
+                                suggestion,
+                                "Conversion Required",
+                                MessageBoxButtons.OK,
+                                MessageBoxIcon.Information
+                            );
+                        }
+                        return;
+                    }
+
+                    // Show warning for large files
+                    if (errorMessage != null)
+                    {
+                        var result = MessageBox.Show(
+                            errorMessage + "\n\nContinue anyway?",
+                            "Warning",
+                            MessageBoxButtons.YesNo,
+                            MessageBoxIcon.Warning
+                        );
+                        
+                        if (result != DialogResult.Yes)
+                            return;
+                    }
+
+                    try
+                    {
+                        var currentTab = GetCurrentTab();
+                        
+                        // Get playlist information if available
+                        List<string> playlistFiles = null;
+                        int currentIndex = 0;
+                        
+                        if (currentTab?.Playlist != null && currentTab.Playlist.Count > 0)
+                        {
+                            playlistFiles = currentTab.Playlist.MediaFiles;
+                            currentIndex = playlistFiles.IndexOf(filePath);
+                            if (currentIndex < 0)
+                            {
+                                // File not in playlist - add it
+                                currentTab.Playlist.AddFiles(filePath);
+                                playlistFiles = currentTab.Playlist.MediaFiles;
+                                currentIndex = playlistFiles.IndexOf(filePath);
+                            }
+                        }
+                        
+                        // Create HTML player page with the media file - use full playlist player if available
+                        var tempHtmlPath = LocalMediaHelper.CreateTemporaryPlayerFile(
+                            filePath,
+                            autoplay: true,  // Enable autoplay for user-initiated media file opens
+                            loop: false,
+                            playlistFiles: playlistFiles,
+                            currentIndex: currentIndex
+                        );
+                        var url = LocalMediaHelper.FilePathToUrl(tempHtmlPath);
+                        
+                        // Navigate to the player
+                        NavigateToUrl(url);
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show(
+                            $"Error opening media file:\n{ex.Message}",
+                            "Media Playback Error",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Error
+                        );
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Opens a playlist from file or folder
+        /// </summary>
+        private void OpenPlaylist()
+        {
+            var result = MessageBox.Show(
+                "Load playlist from:\n\n" +
+                "YES - M3U Playlist File\n" +
+                "NO - Folder (all media files)\n" +
+                "CANCEL - Cancel",
+                "Open Playlist",
+                MessageBoxButtons.YesNoCancel,
+                MessageBoxIcon.Question
+            );
+
+            var currentTab = GetCurrentTab();
+            if (currentTab == null) return;
+
+            List<string> mediaFiles = null;
+            
+            if (result == DialogResult.Yes)
+            {
+                // Load M3U file
+                using (var openFileDialog = new OpenFileDialog())
+                {
+                    openFileDialog.Title = "Select M3U Playlist";
+                    openFileDialog.Filter = "M3U Playlist (*.m3u;*.m3u8)|*.m3u;*.m3u8|All Files (*.*)|*.*";
+                    openFileDialog.FilterIndex = 1;
+                    openFileDialog.RestoreDirectory = true;
+
+                    if (openFileDialog.ShowDialog() == DialogResult.OK)
+                    {
+                        if (currentTab.Playlist.LoadFromM3U(openFileDialog.FileName))
+                        {
+                            mediaFiles = currentTab.Playlist.MediaFiles;
+                        }
+                    }
+                }
+            }
+            else if (result == DialogResult.No)
+            {
+                // Load from folder
+                using (var folderDialog = new FolderBrowserDialog())
+                {
+                    folderDialog.Description = "Select folder containing media files";
+                    folderDialog.ShowNewFolderButton = false;
+
+                    if (folderDialog.ShowDialog() == DialogResult.OK)
+                    {
+                        if (currentTab.Playlist.LoadFromFolder(folderDialog.SelectedPath))
+                        {
+                            mediaFiles = currentTab.Playlist.MediaFiles;
+                        }
+                    }
+                }
+            }
+
+            // If we successfully loaded a playlist, show it with the full playlist player
+            if (mediaFiles != null && mediaFiles.Count > 0)
+            {
+                MessageBox.Show(
+                    $"Loaded {mediaFiles.Count} media files",
+                    "Playlist Loaded",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information
+                );
+
+                // Create the full playlist player view
+                var firstFile = mediaFiles[0];
+                var tempHtmlPath = LocalMediaHelper.CreateTemporaryPlayerFile(
+                    firstFile,
+                    autoplay: true,
+                    loop: false,
+                    playlistFiles: mediaFiles,
+                    currentIndex: 0
+                );
+                var playerUrl = LocalMediaHelper.FilePathToUrl(tempHtmlPath);
+                NavigateToUrl(playerUrl);
+            }
+        }
+
+        /// <summary>
+        /// Adds songs to the current playlist
+        /// </summary>
+        private void AddSongsToPlaylist()
+        {
+            var currentTab = GetCurrentTab();
+            if (currentTab == null) return;
+
+            using (var openFileDialog = new OpenFileDialog())
+            {
+                openFileDialog.Title = "Add Songs to Playlist";
+                openFileDialog.Filter = 
+                    "All Media Files|*.mp4;*.webm;*.ogv;*.ogg;*.mp3;*.wav;*.aac;*.m4a;*.opus;*.flac|" +
+                    "Video Files|*.mp4;*.webm;*.ogv;*.ogg|" +
+                    "Audio Files|*.mp3;*.wav;*.aac;*.m4a;*.opus;*.flac;*.ogg|" +
+                    "All Files|*.*";
+                openFileDialog.FilterIndex = 1;
+                openFileDialog.Multiselect = true;
+                openFileDialog.RestoreDirectory = true;
+
+                if (openFileDialog.ShowDialog() == DialogResult.OK)
+                {
+                    var filePaths = openFileDialog.FileNames;
+                    
+                    if (filePaths.Length == 0)
+                        return;
+
+                    // Filter to only supported media files
+                    var validFiles = new List<string>();
+                    var invalidFiles = new List<string>();
+
+                    foreach (var file in filePaths)
+                    {
+                        if (LocalMediaHelper.IsMediaSupported(file))
+                        {
+                            validFiles.Add(file);
+                        }
+                        else
+                        {
+                            invalidFiles.Add(Path.GetFileName(file));
+                        }
+                    }
+
+                    // Show warning if some files were invalid
+                    if (invalidFiles.Count > 0)
+                    {
+                        var message = $"The following {invalidFiles.Count} file(s) are not supported and will be skipped:\n\n";
+                        message += string.Join("\n", invalidFiles.Take(10));
+                        if (invalidFiles.Count > 10)
+                        {
+                            message += $"\n... and {invalidFiles.Count - 10} more";
+                        }
+
+                        MessageBox.Show(
+                            message,
+                            "Unsupported Files",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Warning
+                        );
+                    }
+
+                    // Add valid files to playlist
+                    if (validFiles.Count > 0)
+                    {
+                        // Store the current playlist count BEFORE adding
+                        int previousPlaylistCount = currentTab.Playlist.Count;
+                        
+                        // Add files to playlist FIRST
+                        currentTab.Playlist.AddFiles(validFiles.ToArray());
+
+                        MessageBox.Show(
+                            $"Added {validFiles.Count} song(s) to playlist.\n\n" +
+                            $"Total songs in playlist: {currentTab.Playlist.Count}",
+                            "Songs Added",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Information
+                        );
+
+                        // Check if we're currently on an ACTIVE media player page (not a restored media:/// URL)
+                        bool isActivelyPlayingMedia = !string.IsNullOrEmpty(currentTab.CurrentUrl) && 
+                                                       LocalMediaHelper.IsTempMediaPlayerUrl(currentTab.CurrentUrl);
+                        
+                        // Only reload the player if:
+                        // 1. We're currently ACTIVELY playing media (temp player URL)
+                        // OR
+                        // 2. The playlist was empty before adding (new playlist scenario)
+                        if (isActivelyPlayingMedia || previousPlaylistCount == 0)
+                        {
+                            // Get the current file
+                            string fileToPlay = currentTab.Playlist.CurrentFile;
+                            int indexToPlay = currentTab.Playlist.CurrentIndex;
+                            
+                            // If current file doesn't exist or is null AND we had an empty playlist, start from beginning
+                            if ((string.IsNullOrEmpty(fileToPlay) || !File.Exists(fileToPlay)) && previousPlaylistCount == 0)
+                            {
+                                // Jump to first file only for NEW playlists
+                                fileToPlay = currentTab.Playlist.JumpTo(0);
+                                indexToPlay = 0;
+                            }
+                            else if (string.IsNullOrEmpty(fileToPlay) || !File.Exists(fileToPlay))
+                            {
+                                // For some reason current file is invalid - try first file
+                                fileToPlay = currentTab.Playlist.JumpTo(0);
+                                indexToPlay = 0;
+                            }
+                            
+                            if (fileToPlay != null && File.Exists(fileToPlay))
+                            {
+                                // Determine if we should autoplay
+                                // Autoplay if:
+                                // - We're currently playing media (adding to active playlist)
+                                // - OR we had an empty playlist (new playlist scenario)
+                                bool shouldAutoplay = isActivelyPlayingMedia || previousPlaylistCount == 0;
+                                
+                                // Recreate the playlist player with the updated playlist
+                                var tempHtmlPath = LocalMediaHelper.CreateTemporaryPlayerFile(
+                                    fileToPlay,
+                                    autoplay: shouldAutoplay,
+                                    loop: false,
+                                    playlistFiles: currentTab.Playlist.MediaFiles,
+                                    currentIndex: indexToPlay
+                                );
+                                var playerUrl = LocalMediaHelper.FilePathToUrl(tempHtmlPath);
+                                NavigateToUrl(playerUrl);
+                            }
+                        }
+                    }
+                    else if (invalidFiles.Count > 0)
+                    {
+                        MessageBox.Show(
+                            "No valid media files were selected.",
+                            "No Files Added",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Information
+                        );
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Removes the current song from the playlist
+        /// </summary>
+        private void RemoveCurrentSong()
+        {
+            var currentTab = GetCurrentTab();
+            if (currentTab?.Playlist == null || currentTab.Playlist.Count == 0)
+            {
+                MessageBox.Show(
+                    "No playlist loaded or playlist is empty.",
+                    "Remove Song",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information
+                );
+                return;
+            }
+
+            // Get the current index before removal
+            int currentIndex = currentTab.Playlist.CurrentIndex;
+            
+            if (currentIndex < 0 || currentIndex >= currentTab.Playlist.MediaFiles.Count)
+            {
+                MessageBox.Show(
+                    "No song is currently selected.",
+                    "Remove Song",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information
+                );
+                return;
+            }
+
+            var currentFile = currentTab.Playlist.MediaFiles[currentIndex];
+            var fileName = Path.GetFileName(currentFile);
+
+            // Check if this is the last song in the playlist
+            if (currentTab.Playlist.Count == 1)
+            {
+                // Stop playing and clear the playlist
+                currentTab.Playlist.RemoveFile(currentIndex);
+                
+                // Navigate to home page to stop playback
+                NavigateTabToUrl(currentTab, _homeUrl);
+                
+                MessageBox.Show(
+                    $"Removed: {fileName}\n\nPlaylist is now empty.",
+                    "Song Removed",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information
+                );
+            }
+            else
+            {
+                // Multiple songs in playlist - skip to next and remove current
+                string nextFile = null;
+                
+                // Determine which song to play next
+                if (currentIndex < currentTab.Playlist.MediaFiles.Count - 1)
+                {
+                    // Not the last song - get the next one (same index after removal)
+                    nextFile = currentTab.Playlist.MediaFiles[currentIndex + 1];
+                }
+                else
+                {
+                    // Last song - wrap to first if repeat is on, otherwise play previous
+                    if (currentTab.Playlist.Repeat)
+                    {
+                        nextFile = currentTab.Playlist.MediaFiles[0];
+                    }
+                    else if (currentIndex > 0)
+                    {
+                        nextFile = currentTab.Playlist.MediaFiles[currentIndex - 1];
+                    }
+                }
+
+                // Remove the current song
+                currentTab.Playlist.RemoveFile(currentIndex);
+
+                // Navigate to the next song
+                if (nextFile != null)
+                {
+                    // Find the new index of the next file after removal
+                    int newIndex = currentTab.Playlist.MediaFiles.IndexOf(nextFile);
+                    if (newIndex >= 0)
+                    {
+                        currentTab.Playlist.JumpTo(newIndex);
+                        NavigateTabToUrl(currentTab, "media:///" + nextFile);
+                    }
+                }
+
+                MessageBox.Show(
+                    $"Removed: {fileName}\n\n" +
+                    $"Remaining songs: {currentTab.Playlist.Count}",
+                    "Song Removed",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information
+                );
+            }
+        }
+
+        /// <summary>
+        /// Shows the playlist viewer dialog
+        /// </summary>
+        private void ShowPlaylistViewer()
+        {
+            var currentTab = GetCurrentTab();
+            if (currentTab?.Playlist == null || currentTab.Playlist.Count == 0)
+            {
+                MessageBox.Show("No playlist loaded", "Playlist", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            using (var form = new Form())
+            {
+                form.Text = "Playlist";
+                form.Size = new Size(600, 400);
+                form.StartPosition = FormStartPosition.CenterParent;
+
+                var listBox = new ListBox
+                {
+                    Dock = DockStyle.Fill,
+                    Font = new Font("Consolas", 10)
+                };
+
+                for (int i = 0; i < currentTab.Playlist.MediaFiles.Count; i++)
+                {
+                    var file = currentTab.Playlist.MediaFiles[i];
+                    var prefix = i == currentTab.Playlist.CurrentIndex ? "▶ " : "   ";
+                    listBox.Items.Add($"{prefix}{Path.GetFileName(file)}");
+                }
+
+                listBox.SelectedIndex = currentTab.Playlist.CurrentIndex;
+                listBox.DoubleClick += (s, e) =>
+                {
+                    if (listBox.SelectedIndex >= 0)
+                    {
+                        var file = currentTab.Playlist.JumpTo(listBox.SelectedIndex);
+                        if (file != null)
+                        {
+                            NavigateTabToUrl(currentTab, "media:///" + file);
+                            form.Close();
+                        }
+                    }
+                };
+
+                form.Controls.Add(listBox);
+                form.ShowDialog();
+            }
+        }
+
+        /// <summary>
+        /// Saves the current playlist to an M3U file
+        /// </summary>
+        private void SavePlaylist()
+        {
+            var currentTab = GetCurrentTab();
+            if (currentTab?.Playlist == null || currentTab.Playlist.Count == 0)
+            {
+                MessageBox.Show("No playlist to save", "Playlist", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            using (var saveFileDialog = new SaveFileDialog())
+            {
+                saveFileDialog.Filter = "M3U Playlist (*.m3u)|*.m3u";
+                saveFileDialog.FileName = "playlist.m3u";
+
+                if (saveFileDialog.ShowDialog() == DialogResult.OK)
+                {
+                    currentTab.Playlist.SaveToM3U(saveFileDialog.FileName);
+                    MessageBox.Show("Playlist saved!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+            }
+        }
+    }
+}

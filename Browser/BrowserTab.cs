@@ -20,13 +20,29 @@ namespace DynamicBrowserPanels
 
         public event EventHandler<string> UrlChanged;
         public event EventHandler<string> TitleChanged;
-
+        
+        // Add field
+        private PlaylistManager _playlist;
         public WebView2 WebView => _webView;
         public bool IsInitialized => _isInitialized;
         public string CurrentUrl => _currentUrl ?? _webView?.Source?.ToString() ?? _pendingUrl ?? "";
         public bool CanGoBack => _webView?.CoreWebView2?.CanGoBack ?? false;
         public bool CanGoForward => _webView?.CoreWebView2?.CanGoForward ?? false;
-        
+
+        // Add property
+        public PlaylistManager Playlist
+        {
+            get
+            {
+                if (_playlist == null)
+                {
+                    _playlist = new PlaylistManager();
+                    // No longer need MediaChanged event - playlist player handles everything
+                }
+                return _playlist;
+            }
+        }
+
         /// <summary>
         /// Custom name for the tab (suppresses automatic title updates when set)
         /// </summary>
@@ -59,6 +75,10 @@ namespace DynamicBrowserPanels
                 _webView.NavigationStarting += WebView_NavigationStarting;
                 _webView.NavigationCompleted += WebView_NavigationCompleted;
                 _webView.CoreWebView2.DocumentTitleChanged += CoreWebView2_DocumentTitleChanged;
+                _webView.CoreWebView2.WebMessageReceived += CoreWebView2_WebMessageReceived;
+                
+                // Add permission handler for autoplay
+                _webView.CoreWebView2.PermissionRequested += CoreWebView2_PermissionRequested;
 
                 _isInitialized = true;
 
@@ -81,6 +101,15 @@ namespace DynamicBrowserPanels
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Error
                 );
+            }
+        }
+
+        private void CoreWebView2_PermissionRequested(object sender, CoreWebView2PermissionRequestedEventArgs e)
+        {
+            // Auto-grant all permissions for local file:// URLs (our media player)
+            if (e.Uri.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
+            {
+                e.State = CoreWebView2PermissionState.Allow;
             }
         }
 
@@ -180,6 +209,76 @@ namespace DynamicBrowserPanels
                 TitleChanged?.Invoke(this, _webView.CoreWebView2.DocumentTitle);
             }
             // Otherwise, silently ignore the title change - custom name takes precedence
+        }
+
+        private async void CoreWebView2_WebMessageReceived(object sender, CoreWebView2WebMessageReceivedEventArgs e)
+        {
+            try
+            {
+                var json = e.WebMessageAsJson;
+                
+                // Parse the JSON to get the action
+                if (json.Contains("\"action\""))
+                {
+                    if (json.Contains("\"previous\""))
+                    {
+                        // Handle previous track
+                        if (_playlist != null && _playlist.Count > 0)
+                        {
+                            var prevFile = _playlist.Previous();
+                            if (prevFile != null)
+                            {
+                                await NavigateToPlaylistTrack(prevFile);
+                            }
+                        }
+                    }
+                    else if (json.Contains("\"next\""))
+                    {
+                        // Handle next track
+                        if (_playlist != null && _playlist.Count > 0)
+                        {
+                            var nextFile = _playlist.Next();
+                            if (nextFile != null)
+                            {
+                                await NavigateToPlaylistTrack(nextFile);
+                            }
+                        }
+                    }
+                    else if (json.Contains("\"stateChanged\""))
+                    {
+                        // Future: Could extract and sync playlist state here
+                        // For now, the HTML player manages its own state
+                    }
+                }
+            }
+            catch
+            {
+                // Ignore message parsing errors
+            }
+        }
+
+        /// <summary>
+        /// Navigate to a specific track in the playlist (for single-file player with prev/next)
+        /// </summary>
+        private async Task NavigateToPlaylistTrack(string filePath)
+        {
+            try
+            {
+                // Create temporary player HTML with playlist support
+                var tempHtmlPath = LocalMediaHelper.CreateTemporaryPlayerFile(
+                    filePath,
+                    autoplay: true,
+                    loop: false,
+                    playlistFiles: _playlist?.MediaFiles,
+                    currentIndex: _playlist?.CurrentIndex ?? 0
+                );
+                var playerUrl = LocalMediaHelper.FilePathToUrl(tempHtmlPath);
+                await NavigateToUrl(playerUrl);
+            }
+            catch
+            {
+                // Ignore navigation errors
+            }
         }
 
         public void Dispose()

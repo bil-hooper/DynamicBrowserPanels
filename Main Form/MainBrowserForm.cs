@@ -1,4 +1,4 @@
-using System;
+ï»¿using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Threading.Tasks;
@@ -367,9 +367,9 @@ namespace DynamicBrowserPanels
                 message = $"Reset layout and end session?\n\n" +
                           $"Template: {Path.GetFileName(BrowserStateManager.SessionFilePath)}\n\n" +
                           $"This will:\n" +
-                          $"• Clear the current layout\n" +
-                          $"• Close this template session\n" +
-                          $"• Return to normal mode\n\n" +
+                          $"â€¢ Clear the current layout\n" +
+                          $"â€¢ Close this template session\n" +
+                          $"â€¢ Return to normal mode\n\n" +
                           $"Note: Template file will NOT be modified.";
             }
             else
@@ -599,11 +599,21 @@ namespace DynamicBrowserPanels
                 {
                     // Capture tabs state
                     var tabsState = browser.GetTabsState();
+                    
+                    if (tabsState.TabPlaylists != null)
+                    {
+                        for (int i = 0; i < tabsState.TabPlaylists.Count; i++)
+                        {
+                            var pl = tabsState.TabPlaylists[i];
+                        }
+                    }
+                    
                     state.TabsState = new TabsStateData
                     {
                         SelectedTabIndex = tabsState.SelectedTabIndex,
                         TabUrls = tabsState.TabUrls,
-                        TabCustomNames = tabsState.TabCustomNames
+                        TabCustomNames = tabsState.TabCustomNames,
+                        TabPlaylists = tabsState.TabPlaylists // âœ… Add this line to preserve playlist data
                     };
                     
                     // Also save current URL for backward compatibility
