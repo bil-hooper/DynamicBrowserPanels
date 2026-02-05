@@ -1,27 +1,33 @@
+using Microsoft.Web.WebView2.WinForms;
+using Microsoft.Web.WebView2.Core;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using Microsoft.Web.WebView2.Core;
 
 namespace DynamicBrowserPanels
 {
     /// <summary>
-    /// Compact WebView2 control with tabbed browsing support
+    /// Compact WebView2 browser control with tab support
     /// </summary>
     public partial class CompactWebView2Control : UserControl
     {
+        // UI Components
         private TabControl tabControl;
         private TextBox txtUrl;
         private ContextMenuStrip contextMenu;
+
+        // Context menu items
         private ToolStripMenuItem mnuBack;
         private ToolStripMenuItem mnuForward;
         private ToolStripMenuItem mnuRefresh;
         private ToolStripMenuItem mnuHome;
         private ToolStripSeparator separator1;
         private ToolStripMenuItem mnuOpenMedia;
+        private ToolStripMenuItem mnuPlaylistControls;
         private ToolStripSeparator separator1b;
         private ToolStripMenuItem mnuOpenNotepad;
+        private ToolStripMenuItem mnuTimer;
         private ToolStripMenuItem mnuNewTab;
         private ToolStripMenuItem mnuCloseTab;
         private ToolStripMenuItem mnuRenameTab;
@@ -38,39 +44,30 @@ namespace DynamicBrowserPanels
         private ToolStripMenuItem mnuManagePasswords;
         private ToolStripMenuItem mnuInstall;
         private ToolStripMenuItem mnuUninstall;
-        private ToolStripMenuItem mnuOpenPlaylist;
-        private ToolStripMenuItem mnuPlaylistControls;
 
-        private string _homeUrl = GlobalConstants.DEFAULT_URL;
+        // Tab management
         private List<BrowserTab> _browserTabs = new List<BrowserTab>();
-        private static CoreWebView2Environment _sharedEnvironment;
-
-        // Track custom names for serialization
         private List<string> _tabCustomNames = new List<string>();
 
+        // Shared WebView2 environment
+        private static CoreWebView2Environment _sharedEnvironment;
+
+        // Properties
+        public string HomeUrl { get; set; } = GlobalConstants.DEFAULT_URL;
+        public string CurrentUrl => GetCurrentTab()?.CurrentUrl ?? HomeUrl;
+
+        // Events
         public event EventHandler<SplitRequestedEventArgs> SplitRequested;
         public event EventHandler ResetLayoutRequested;
         public event EventHandler SaveLayoutRequested;
         public event EventHandler LoadLayoutRequested;
+        public event EventHandler<TimeSpan> TimerRequested;
+        public event EventHandler TimerStopRequested;
 
         public CompactWebView2Control()
         {
             InitializeComponent();
         }
-
-        /// <summary>
-        /// Gets or sets the home URL
-        /// </summary>
-        public string HomeUrl
-        {
-            get => _homeUrl;
-            set => _homeUrl = value;
-        }
-
-        /// <summary>
-        /// Gets the current URL of the active tab
-        /// </summary>
-        public string CurrentUrl => GetCurrentTab()?.CurrentUrl ?? _homeUrl;
 
         /// <summary>
         /// Navigates the current tab to the specified URL
@@ -113,7 +110,7 @@ namespace DynamicBrowserPanels
         /// </summary>
         public void GoHome()
         {
-            NavigateToUrl(_homeUrl);
+            NavigateToUrl(HomeUrl);
         }
 
         /// <summary>
@@ -173,7 +170,7 @@ namespace DynamicBrowserPanels
                     tab?.Dispose();
                 }
                 _browserTabs.Clear();
-                
+
                 tabControl?.Dispose();
                 contextMenu?.Dispose();
                 txtUrl?.Dispose();

@@ -45,6 +45,23 @@ namespace DynamicBrowserPanels
             mnuOpenNotepad = new ToolStripMenuItem("📝 Open Notepad");
             mnuOpenNotepad.Click += (s, e) => OpenNotepad();
             
+            // Timer menu
+            mnuTimer = new ToolStripMenuItem("⏱ Timer");
+            mnuTimer.DropDownItems.AddRange(new ToolStripItem[]
+            {
+                new ToolStripMenuItem("⏱ 5 Minutes", null, (s, e) => SetTimer(TimeSpan.FromMinutes(5))),
+                new ToolStripMenuItem("⏱ 10 Minutes", null, (s, e) => SetTimer(TimeSpan.FromMinutes(10))),
+                new ToolStripMenuItem("⏱ 15 Minutes", null, (s, e) => SetTimer(TimeSpan.FromMinutes(15))),
+                new ToolStripMenuItem("⏱ 20 Minutes", null, (s, e) => SetTimer(TimeSpan.FromMinutes(20))),
+                new ToolStripMenuItem("⏱ 25 Minutes", null, (s, e) => SetTimer(TimeSpan.FromMinutes(25))),
+                new ToolStripMenuItem("⏱ 30 Minutes", null, (s, e) => SetTimer(TimeSpan.FromMinutes(30))),
+                new ToolStripMenuItem("⏱ 1 Hour", null, (s, e) => SetTimer(TimeSpan.FromHours(1))),
+                new ToolStripSeparator(),
+                new ToolStripMenuItem("⏱ Custom...", null, (s, e) => SetCustomTimer()),
+                new ToolStripSeparator(),
+                new ToolStripMenuItem("⏹ Stop Timer", null, (s, e) => StopTimer())
+            });
+            
             new ToolStripSeparator();
             
             mnuNewTab = new ToolStripMenuItem("+ New Tab");
@@ -102,6 +119,7 @@ namespace DynamicBrowserPanels
                 mnuPlaylistControls,
                 separator1b,
                 mnuOpenNotepad,
+                mnuTimer,
                 new ToolStripSeparator(),
                 mnuNewTab, mnuCloseTab, mnuRenameTab,
                 new ToolStripSeparator(),
@@ -219,6 +237,36 @@ namespace DynamicBrowserPanels
                     MessageBoxIcon.Error
                 );
             }
+        }
+
+        /// <summary>
+        /// Sets a timer with the specified duration
+        /// </summary>
+        private void SetTimer(TimeSpan duration)
+        {
+            TimerRequested?.Invoke(this, duration);
+        }
+
+        /// <summary>
+        /// Shows a dialog to set a custom timer
+        /// </summary>
+        private void SetCustomTimer()
+        {
+            using (var dialog = new TimerInputDialog())
+            {
+                if (dialog.ShowDialog() == DialogResult.OK)
+                {
+                    SetTimer(dialog.TimerDuration);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Stops the active timer
+        /// </summary>
+        private void StopTimer()
+        {
+            TimerStopRequested?.Invoke(this, EventArgs.Empty);
         }
     }
 }
