@@ -231,5 +231,53 @@ namespace DynamicBrowserPanels
 
             tabControl.SelectedIndex = newIndex;
         }
+
+        /// <summary>
+        /// Moves the current tab all the way to the left (first position)
+        /// </summary>
+        private void MoveTabToStart()
+        {
+            int selectedIndex = tabControl.SelectedIndex;
+            if (selectedIndex <= 0) return;
+
+            var tabPage = tabControl.TabPages[selectedIndex];
+            var browserTab = _browserTabs[selectedIndex];
+            var customName = _tabCustomNames[selectedIndex];
+
+            tabControl.TabPages.RemoveAt(selectedIndex);
+            _browserTabs.RemoveAt(selectedIndex);
+            _tabCustomNames.RemoveAt(selectedIndex);
+
+            tabControl.TabPages.Insert(0, tabPage);
+            _browserTabs.Insert(0, browserTab);
+            _tabCustomNames.Insert(0, customName);
+
+            tabControl.SelectedIndex = 0;
+        }
+
+        /// <summary>
+        /// Moves the current tab all the way to the right (last position)
+        /// </summary>
+        private void MoveTabToEnd()
+        {
+            int selectedIndex = tabControl.SelectedIndex;
+            int lastIndex = tabControl.TabPages.Count - 1;
+            
+            if (selectedIndex < 0 || selectedIndex >= lastIndex) return;
+
+            var tabPage = tabControl.TabPages[selectedIndex];
+            var browserTab = _browserTabs[selectedIndex];
+            var customName = _tabCustomNames[selectedIndex];
+
+            tabControl.TabPages.RemoveAt(selectedIndex);
+            _browserTabs.RemoveAt(selectedIndex);
+            _tabCustomNames.RemoveAt(selectedIndex);
+
+            tabControl.TabPages.Insert(lastIndex, tabPage);
+            _browserTabs.Insert(lastIndex, browserTab);
+            _tabCustomNames.Insert(lastIndex, customName);
+
+            tabControl.SelectedIndex = lastIndex;
+        }
     }
 }

@@ -79,6 +79,12 @@ namespace DynamicBrowserPanels
             mnuMoveTabRight = new ToolStripMenuItem("Move Tab Right →");
             mnuMoveTabRight.Click += (s, e) => MoveTabRight();
             
+            mnuMoveTabToStart = new ToolStripMenuItem("⇤ Move Tab to Start");
+            mnuMoveTabToStart.Click += (s, e) => MoveTabToStart();
+            
+            mnuMoveTabToEnd = new ToolStripMenuItem("Move Tab to End ⇥");
+            mnuMoveTabToEnd.Click += (s, e) => MoveTabToEnd();
+            
             separator2 = new ToolStripSeparator();
             
             mnuSplitHorizontal = new ToolStripMenuItem("Split Horizontal ⬌");
@@ -124,6 +130,7 @@ namespace DynamicBrowserPanels
                 mnuNewTab, mnuCloseTab, mnuRenameTab,
                 new ToolStripSeparator(),
                 mnuMoveTabLeft, mnuMoveTabRight,
+                mnuMoveTabToStart, mnuMoveTabToEnd,
                 separator2,
                 mnuSplitHorizontal, mnuSplitVertical,
                 separator3,
@@ -172,12 +179,20 @@ namespace DynamicBrowserPanels
             // Enable rename if at least one tab exists
             mnuRenameTab.Enabled = _browserTabs.Count > 0;
             
+            int selectedIndex = tabControl.SelectedIndex;
+            int tabCount = _browserTabs.Count;
+            
             // Enable move left if not at the leftmost position
-            mnuMoveTabLeft.Enabled = tabControl.SelectedIndex > 0;
+            mnuMoveTabLeft.Enabled = selectedIndex > 0;
             
             // Enable move right if not at the rightmost position
-            mnuMoveTabRight.Enabled = tabControl.SelectedIndex >= 0 && 
-                                      tabControl.SelectedIndex < _browserTabs.Count - 1;
+            mnuMoveTabRight.Enabled = selectedIndex >= 0 && selectedIndex < tabCount - 1;
+            
+            // Enable move to start if not already at the start
+            mnuMoveTabToStart.Enabled = selectedIndex > 0;
+            
+            // Enable move to end if not already at the end
+            mnuMoveTabToEnd.Enabled = selectedIndex >= 0 && selectedIndex < tabCount - 1;
 
             // Show Install or Uninstall based on installation status
             bool isInstalled = InstallationManager.IsInstalled();
