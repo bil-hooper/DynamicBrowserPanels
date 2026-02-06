@@ -15,24 +15,38 @@ namespace DynamicBrowserPanels
     /// </summary>
     public static class LocalMediaHelper
     {
+        // Temporary playlist directory
+        private static readonly string TempPlaylistDirectory = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "DynamicBrowserPanels",
+            "TempPlaylists"
+        );
+
+        // Playlist save directory
+        private static readonly string PlaylistDirectory = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "DynamicBrowserPanels",
+            "Playlists"
+        );
+
         // Supported video formats
-        private static readonly string[] VideoFormats = 
-        { 
-            ".mp4", ".webm", ".ogv", ".ogg" 
-        };
+        private static readonly string[] VideoFormats =
+        {
+                ".mp4", ".webm", ".ogv", ".ogg"
+            };
 
         // Supported audio formats
-        private static readonly string[] AudioFormats = 
-        { 
-            ".mp3", ".wav", ".aac", ".m4a", ".opus", ".flac", ".ogg" 
-        };
+        private static readonly string[] AudioFormats =
+        {
+                ".mp3", ".wav", ".aac", ".m4a", ".opus", ".flac", ".ogg"
+            };
 
         // Common unsupported formats that users might try
-        private static readonly string[] UnsupportedFormats = 
-        { 
-            ".avi", ".wmv", ".mov", ".mkv", ".flv", ".mpg", ".mpeg", ".3gp" 
-        };
-       
+        private static readonly string[] UnsupportedFormats =
+        {
+                ".avi", ".wmv", ".mov", ".mkv", ".flv", ".mpg", ".mpeg", ".3gp"
+            };
+
         /// <summary>
         /// Checks if a file format is supported for playback
         /// </summary>
@@ -399,17 +413,42 @@ namespace DynamicBrowserPanels
         /// </summary>
         public static string CreateTemporaryPlayerFile(string mediaFilePath, bool autoplay = false, bool loop = false, List<string> playlistFiles = null, int currentIndex = 0)
         {
+            // Ensure temp directory exists
+            EnsureTempDirectoryExists();
+
             // If we have a playlist with multiple files, use the full playlist player
             if (playlistFiles != null && playlistFiles.Count > 1)
             {
                 return CreateTemporaryPlaylistPlayerFile(playlistFiles, currentIndex, shuffle: false, repeat: false);
             }
-            
+
             // Otherwise use the simple single-track player
             var html = CreateMediaPlayerHtml(mediaFilePath, autoplay, loop, hasPlaylist: playlistFiles != null && playlistFiles.Count > 0);
-            var tempPath = Path.Combine(Path.GetTempPath(), $"webview_media_{Guid.NewGuid()}.html");
+            var tempPath = Path.Combine(TempPlaylistDirectory, $"webview_media_{Guid.NewGuid()}.html");
             File.WriteAllText(tempPath, html);
             return tempPath;
+        }
+
+        /// <summary>
+        /// Ensures the temporary playlist directory exists
+        /// </summary>
+        private static void EnsureTempDirectoryExists()
+        {
+            if (!Directory.Exists(TempPlaylistDirectory))
+            {
+                Directory.CreateDirectory(TempPlaylistDirectory);
+            }
+        }
+
+        /// <summary>
+        /// Ensures the playlist save directory exists
+        /// </summary>
+        private static void EnsurePlaylistDirectoryExists()
+        {
+            if (!Directory.Exists(PlaylistDirectory))
+            {
+                Directory.CreateDirectory(PlaylistDirectory);
+            }
         }
 
         /// <summary>
@@ -613,12 +652,16 @@ namespace DynamicBrowserPanels
 
             if (result == DialogResult.Yes)
             {
+                // Ensure playlist directory exists for browsing
+                EnsurePlaylistDirectoryExists();
+
                 // Load M3U file
                 using (var openFileDialog = new OpenFileDialog())
                 {
                     openFileDialog.Title = "Select M3U Playlist";
                     openFileDialog.Filter = "M3U Playlist (*.m3u;*.m3u8)|*.m3u;*.m3u8|All Files (*.*)|*.*";
                     openFileDialog.FilterIndex = 1;
+                    openFileDialog.InitialDirectory = PlaylistDirectory;
                     openFileDialog.RestoreDirectory = true;
 
                     if (openFileDialog.ShowDialog() == DialogResult.OK)
@@ -760,6 +803,9 @@ namespace DynamicBrowserPanels
                     MessageBox.Show("The playlist is empty. No valid media files found.", "Empty Playlist", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     return false;
                 }
+
+                // Ensure playlist directory exists
+                EnsurePlaylistDirectoryExists();
 
                 var lines = new List<string> { "#EXTM3U" };
                 string baseDir = Path.GetDirectoryName(m3uFilePath);
@@ -1326,8 +1372,11 @@ namespace DynamicBrowserPanels
         /// </summary>
         public static string CreateTemporaryPlaylistPlayerFile(List<string> mediaFiles, int currentIndex = 0, bool shuffle = false, bool repeat = false)
         {
+            // Ensure temp directory exists
+            EnsureTempDirectoryExists();
+
             var html = CreatePlaylistPlayerHtml(mediaFiles, currentIndex, shuffle, repeat);
-            var tempPath = Path.Combine(Path.GetTempPath(), $"webview_playlist_{Guid.NewGuid()}.html");
+            var tempPath = Path.Combine(TempPlaylistDirectory, $"webview_playlist_{Guid.NewGuid()}.html");
             File.WriteAllText(tempPath, html);
             return tempPath;
         }
