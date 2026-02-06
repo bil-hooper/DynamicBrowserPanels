@@ -72,6 +72,12 @@ namespace DynamicBrowserPanels
             background: #1177bb;
         }
 
+        .toolbar button:disabled {
+            background: #3e3e42;
+            color: #858585;
+            cursor: not-allowed;
+        }
+
         .toolbar .separator {
             width: 1px;
             height: 20px;
@@ -190,6 +196,9 @@ namespace DynamicBrowserPanels
     <div class=""toolbar"">
         <button id=""btnSave"" title=""Save and View (Ctrl+S)"">Save</button>
         <button id=""btnEdit"" title=""Edit Mode"">Edit</button>
+        <button id=""btnUndo"" title=""Undo (Ctrl+Z)"" disabled>Undo</button>
+        <button id=""btnRedo"" title=""Redo (Ctrl+Y)"" disabled>Redo</button>
+        <div class=""separator""></div>
         <button id=""btnExport"" title=""Export to File"">Export</button>
         <button id=""btnClear"" title=""Clear Note"">Clear</button>
         <div class=""separator""></div>
@@ -249,11 +258,16 @@ Double-click the view to edit again.""></textarea>
             return (note >= 1 && note <= 2147483647) ? note : 1;
         }
 
-        // Update URL
+        // Update URL - ensures URL reflects current note number
         function updateUrl(noteNum) {
             const newUrl = window.location.pathname + '?note=' + noteNum;
-            window.history.pushState({ note: noteNum }, '', newUrl);
+            window.history.replaceState({ note: noteNum }, '', newUrl);
             document.title = 'Note #' + noteNum;
+        }
+
+        // Ensure URL is current before any save/state capture
+        function ensureUrlIsCurrent() {
+            updateUrl(currentNoteNumber);
         }
 
         // Convert URLs to clickable links
@@ -287,8 +301,8 @@ Double-click the view to edit again.""></textarea>
 
         // Update undo/redo button states
         function updateUndoRedoButtons() {
-            btnUndo.disabled = undoStack.length === 0;
-            btnRedo.disabled = redoStack.length === 0;
+            if (btnUndo) btnUndo.disabled = undoStack.length === 0;
+            if (btnRedo) btnRedo.disabled = redoStack.length === 0;
         }
 
         // Save state to undo stack
@@ -328,6 +342,7 @@ Double-click the view to edit again.""></textarea>
 
         // Switch to edit mode
         function enterEditMode() {
+            ensureUrlIsCurrent();
             isEditMode = true;
             notepad.style.display = 'block';
             renderedView.style.display = 'none';
@@ -338,6 +353,7 @@ Double-click the view to edit again.""></textarea>
 
         // Switch to view mode
         function enterViewMode() {
+            ensureUrlIsCurrent();
             isEditMode = false;
             notepad.style.display = 'none';
             renderedView.style.display = 'block';
@@ -374,6 +390,8 @@ Double-click the view to edit again.""></textarea>
 
         // Save note
         function saveNote() {
+            ensureUrlIsCurrent(); // Ensure URL reflects current note before save
+            
             window.chrome.webview.postMessage({
                 action: 'saveNote',
                 noteNumber: currentNoteNumber,
@@ -390,6 +408,8 @@ Double-click the view to edit again.""></textarea>
 
         // Export note
         function exportNote() {
+            ensureUrlIsCurrent();
+            
             window.chrome.webview.postMessage({
                 action: 'exportNote',
                 noteNumber: currentNoteNumber,
@@ -462,8 +482,8 @@ Double-click the view to edit again.""></textarea>
         btnEdit.addEventListener('click', enterEditMode);
         btnExport.addEventListener('click', exportNote);
         btnClear.addEventListener('click', clearNote);
-        btnUndo.addEventListener('click', undo);
-        btnRedo.addEventListener('click', redo);
+        if (btnUndo) btnUndo.addEventListener('click', undo);
+        if (btnRedo) btnRedo.addEventListener('click', redo);
 
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => {
@@ -493,6 +513,11 @@ Double-click the view to edit again.""></textarea>
                 }
             }
         });
+
+        // Periodically ensure URL stays synchronized
+        setInterval(() => {
+            ensureUrlIsCurrent();
+        }, 1000);
 
         // Initialize
         currentNoteNumber = getNoteNumberFromUrl();
