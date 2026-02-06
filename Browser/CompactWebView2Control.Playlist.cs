@@ -185,6 +185,11 @@ namespace DynamicBrowserPanels
                     openFileDialog.Title = "Select M3U Playlist";
                     openFileDialog.Filter = "M3U Playlist (*.m3u;*.m3u8)|*.m3u;*.m3u8|All Files (*.*)|*.*";
                     openFileDialog.FilterIndex = 1;
+                    openFileDialog.InitialDirectory = Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                        "DynamicBrowserPanels",
+                        "Playlists"
+                    );
                     openFileDialog.RestoreDirectory = true;
 
                     if (openFileDialog.ShowDialog() == DialogResult.OK)
@@ -543,6 +548,12 @@ namespace DynamicBrowserPanels
             {
                 saveFileDialog.Filter = "M3U Playlist (*.m3u)|*.m3u";
                 saveFileDialog.FileName = "playlist.m3u";
+                saveFileDialog.InitialDirectory = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "DynamicBrowserPanels",
+                    "Playlists"
+                );
+                saveFileDialog.RestoreDirectory = true;
 
                 if (saveFileDialog.ShowDialog() == DialogResult.OK)
                 {
