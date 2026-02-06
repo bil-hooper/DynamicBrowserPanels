@@ -45,9 +45,32 @@ namespace DynamicBrowserPanels
         public static string SessionFilePath { get; set; }
 
         /// <summary>
+        /// Gets or sets the file path for the loaded session file (non-command-line mode)
+        /// </summary>
+        public static string LoadedSessionFilePath { get; set; }
+
+        /// <summary>
         /// Gets whether the application is in command-line mode (opened with a specific file)
         /// </summary>
         public static bool IsCommandLineMode => !string.IsNullOrEmpty(SessionFilePath);
+
+        /// <summary>
+        /// Gets whether the application is in session mode (a layout file has been loaded)
+        /// </summary>
+        public static bool IsSessionMode => !string.IsNullOrEmpty(LoadedSessionFilePath);
+
+        /// <summary>
+        /// Gets the filename of the current session (without path)
+        /// </summary>
+        public static string SessionFileName
+        {
+            get
+            {
+                if (!string.IsNullOrEmpty(LoadedSessionFilePath))
+                    return Path.GetFileName(LoadedSessionFilePath);
+                return null;
+            }
+        }
 
         /// <summary>
         /// Gets the source backup directory path from backup.dat if it exists
@@ -90,6 +113,15 @@ namespace DynamicBrowserPanels
         public static void EndCommandLineSession()
         {
             SessionFilePath = null;
+            LoadedSessionFilePath = null;
+        }
+
+        /// <summary>
+        /// Ends the session mode (clears loaded file path)
+        /// </summary>
+        public static void EndSessionMode()
+        {
+            LoadedSessionFilePath = null;
         }
 
         /// <summary>
@@ -175,6 +207,37 @@ namespace DynamicBrowserPanels
         }
 
         /// <summary>
+        /// Saves directly to the loaded session file
+        /// </summary>
+        public static bool SaveToSessionFile(BrowserState state)
+        {
+            if (!IsSessionMode)
+                return false;
+
+            try
+            {
+                SaveState(state, LoadedSessionFilePath);
+                MessageBox.Show(
+                    $"Layout saved successfully to:\n{LoadedSessionFilePath}",
+                    "Layout Saved",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information
+                );
+                return true;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"Failed to save layout:\n{ex.Message}",
+                    "Save Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error
+                );
+                return false;
+            }
+        }
+
+        /// <summary>
         /// Loads the current layout from the session file
         /// </summary>
         public static BrowserState LoadCurrentLayout()
@@ -240,6 +303,10 @@ namespace DynamicBrowserPanels
                     try
                     {
                         state = LoadState(openFileDialog.FileName);
+                        
+                        // Set the loaded session file path (enters session mode)
+                        LoadedSessionFilePath = openFileDialog.FileName;
+                        
                         MessageBox.Show(
                             $"Layout loaded successfully from:\n{openFileDialog.FileName}",
                             "Layout Loaded",

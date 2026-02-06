@@ -19,7 +19,7 @@ namespace DynamicBrowserPanels
         public MainBrowserForm()
         {
             InitializeComponent();
-            
+
             // Runtime initialization - not in InitializeComponent()
             if (!DesignMode)
             {
@@ -34,20 +34,71 @@ namespace DynamicBrowserPanels
         {
             // Initialize timer manager
             _timerManager = new TimerManager(this);
-            
+            _timerManager.TimerElapsed += TimerManager_TimerElapsed;
+
             // Set window title based on mode
             if (BrowserStateManager.IsCommandLineMode)
             {
                 this.Text = $"{Path.GetFileName(BrowserStateManager.SessionFilePath)} (Read-Only) - Dynamic Browser Panels";
                 _timerManager.UpdateOriginalTitle(this.Text);
             }
-            
+
             // Wire up event handlers
             FormClosing += MainBrowserForm_FormClosing;
-            
+
             // Load state and cleanup
             _ = LoadStateAsync(); // Fire and forget, but properly async
             CleanupTempFiles();
+        }
+
+        /// <summary>
+        /// Handles timer elapsed event - pauses all media playback
+        /// </summary>
+        private async void TimerManager_TimerElapsed(object sender, EventArgs e)
+        {
+            await PauseAllMediaAsync();
+        }
+
+        /// <summary>
+        /// Pauses all media (playlists and videos) across all browser panels
+        /// </summary>
+        private async Task PauseAllMediaAsync()
+        {
+            var browsers = new List<CompactWebView2Control>();
+            CollectAllBrowserControls(rootPanel, browsers);
+
+            // Pause all browsers concurrently
+            var pauseTasks = new List<Task>();
+            foreach (var browser in browsers)
+            {
+                pauseTasks.Add(browser.PauseAllMediaAsync());
+            }
+
+            await Task.WhenAll(pauseTasks);
+        }
+
+        /// <summary>
+        /// Recursively collects all CompactWebView2Control instances from a panel
+        /// </summary>
+        private void CollectAllBrowserControls(Control control, List<CompactWebView2Control> browsers)
+        {
+            if (control is CompactWebView2Control browser)
+            {
+                browsers.Add(browser);
+                return;
+            }
+
+            if (control is SplitContainer splitContainer)
+            {
+                CollectAllBrowserControls(splitContainer.Panel1, browsers);
+                CollectAllBrowserControls(splitContainer.Panel2, browsers);
+                return;
+            }
+
+            foreach (Control child in control.Controls)
+            {
+                CollectAllBrowserControls(child, browsers);
+            }
         }
 
         private void InitializeComponent()
@@ -87,19 +138,19 @@ namespace DynamicBrowserPanels
             int width = state.FormWidth > 0 ? state.FormWidth : 1184;
             int height = state.FormHeight > 0 ? state.FormHeight : 761;
             this.Size = new Size(width, height);
-            
+
             // Restore form position if saved
             if (state.FormX >= 0 && state.FormY >= 0)
             {
                 this.StartPosition = FormStartPosition.Manual;
                 this.Location = new Point(state.FormX, state.FormY);
-                
+
                 // Ensure the window is visible on screen
                 EnsureWindowVisible();
             }
             else
             {
-                // Center if no position saved
+                // Center if no saved position
                 this.StartPosition = FormStartPosition.CenterScreen;
             }
 
@@ -153,13 +204,14 @@ namespace DynamicBrowserPanels
 
             browser.SplitRequested += Browser_SplitRequested;
             browser.ResetLayoutRequested += Browser_ResetLayoutRequested;
-            browser.SaveLayoutRequested += Browser_SaveLayoutRequested;
+            browser.SaveLayoutDirectRequested += Browser_SaveLayoutDirectRequested;
+            browser.SaveLayoutAsRequested += Browser_SaveLayoutAsRequested;
             browser.LoadLayoutRequested += Browser_LoadLayoutRequested;
             browser.TimerRequested += Browser_TimerRequested;
             browser.TimerStopRequested += Browser_TimerStopRequested;
 
             rootPanel.Controls.Add(browser);
-            
+
             // Ensure at least one tab exists
             await browser.EnsureTabExists();
         }
@@ -182,7 +234,8 @@ namespace DynamicBrowserPanels
 
                 browser.SplitRequested += Browser_SplitRequested;
                 browser.ResetLayoutRequested += Browser_ResetLayoutRequested;
-                browser.SaveLayoutRequested += Browser_SaveLayoutRequested;
+                browser.SaveLayoutDirectRequested += Browser_SaveLayoutDirectRequested;
+                browser.SaveLayoutAsRequested += Browser_SaveLayoutAsRequested;
                 browser.LoadLayoutRequested += Browser_LoadLayoutRequested;
                 browser.TimerRequested += Browser_TimerRequested;
                 browser.TimerStopRequested += Browser_TimerStopRequested;
@@ -198,9 +251,9 @@ namespace DynamicBrowserPanels
                 else
                 {
                     // This will create a tab with the URL or home URL
-                    await browser.RestoreTabsState(new TabsStateData 
-                    { 
-                        TabUrls = new List<string>{ state.Url ?? GlobalConstants.DEFAULT_URL },
+                    await browser.RestoreTabsState(new TabsStateData
+                    {
+                        TabUrls = new List<string> { state.Url ?? GlobalConstants.DEFAULT_URL },
                         SelectedTabIndex = 0
                     });
                 }
@@ -208,8 +261,8 @@ namespace DynamicBrowserPanels
             else
             {
                 // Create a split container
-                var orientation = state.SplitOrientation == "Horizontal" 
-                    ? Orientation.Horizontal 
+                var orientation = state.SplitOrientation == "Horizontal"
+                    ? Orientation.Horizontal
                     : Orientation.Vertical;
 
                 var splitContainer = new SplitContainer
@@ -223,8 +276,8 @@ namespace DynamicBrowserPanels
 
                 // Calculate and set splitter distance
                 splitContainer.SplitterDistance = CalculateSplitterDistance(
-                    splitContainer, 
-                    state.SplitterDistance, 
+                    splitContainer,
+                    state.SplitterDistance,
                     state.PanelSize,
                     orientation
                 );
@@ -258,8 +311,8 @@ namespace DynamicBrowserPanels
         private int CalculateSplitterDistance(SplitContainer splitContainer, int savedDistance, int savedPanelSize, Orientation orientation)
         {
             // Get the current size of the split container
-            int currentSize = orientation == Orientation.Vertical 
-                ? splitContainer.Width 
+            int currentSize = orientation == Orientation.Vertical
+                ? splitContainer.Width
                 : splitContainer.Height;
 
             // If we have saved values, try to maintain the same ratio
@@ -267,20 +320,20 @@ namespace DynamicBrowserPanels
             {
                 // Calculate the ratio of the saved splitter position
                 double ratio = (double)savedDistance / (double)savedPanelSize;
-                
+
                 // Apply the same ratio to the current size
                 int newDistance = (int)(currentSize * ratio);
-                
+
                 // Ensure the distance is within valid bounds
                 int minDistance = splitContainer.Panel1MinSize;
                 int maxDistance = currentSize - splitContainer.Panel2MinSize;
-                
+
                 // Clamp the value to valid range
                 newDistance = Math.Max(minDistance, Math.Min(newDistance, maxDistance));
-                
+
                 return newDistance;
             }
-            
+
             // Default to middle if no saved values
             return currentSize / 2;
         }
@@ -330,22 +383,24 @@ namespace DynamicBrowserPanels
             // Move the existing browser to panel1
             browser.Parent = null; // Detach first
             browser.Dock = DockStyle.Fill;
-            
+
             // Re-wire events (they should still be connected, but ensure)
             browser.SplitRequested -= Browser_SplitRequested;
             browser.ResetLayoutRequested -= Browser_ResetLayoutRequested;
-            browser.SaveLayoutRequested -= Browser_SaveLayoutRequested;
+            browser.SaveLayoutDirectRequested -= Browser_SaveLayoutDirectRequested;
+            browser.SaveLayoutAsRequested -= Browser_SaveLayoutAsRequested;
             browser.LoadLayoutRequested -= Browser_LoadLayoutRequested;
             browser.TimerRequested -= Browser_TimerRequested;
             browser.TimerStopRequested -= Browser_TimerStopRequested;
-            
+
             browser.SplitRequested += Browser_SplitRequested;
             browser.ResetLayoutRequested += Browser_ResetLayoutRequested;
-            browser.SaveLayoutRequested += Browser_SaveLayoutRequested;
+            browser.SaveLayoutDirectRequested += Browser_SaveLayoutDirectRequested;
+            browser.SaveLayoutAsRequested += Browser_SaveLayoutAsRequested;
             browser.LoadLayoutRequested += Browser_LoadLayoutRequested;
             browser.TimerRequested += Browser_TimerRequested;
             browser.TimerStopRequested += Browser_TimerStopRequested;
-            
+
             panel1.Controls.Add(browser);
 
             // Create a new browser in panel2
@@ -357,13 +412,14 @@ namespace DynamicBrowserPanels
 
             newBrowser.SplitRequested += Browser_SplitRequested;
             newBrowser.ResetLayoutRequested += Browser_ResetLayoutRequested;
-            newBrowser.SaveLayoutRequested += Browser_SaveLayoutRequested;
+            newBrowser.SaveLayoutDirectRequested += Browser_SaveLayoutDirectRequested;
+            newBrowser.SaveLayoutAsRequested += Browser_SaveLayoutAsRequested;
             newBrowser.LoadLayoutRequested += Browser_LoadLayoutRequested;
             newBrowser.TimerRequested += Browser_TimerRequested;
             newBrowser.TimerStopRequested += Browser_TimerStopRequested;
 
             panel2.Controls.Add(newBrowser);
-            
+
             // Ensure the new browser has at least one tab
             await newBrowser.EnsureTabExists();
 
@@ -393,7 +449,7 @@ namespace DynamicBrowserPanels
         private void Browser_ResetLayoutRequested(object sender, EventArgs e)
         {
             string message;
-            
+
             if (BrowserStateManager.IsCommandLineMode)
             {
                 message = $"Reset layout and end session?\n\n" +
@@ -409,7 +465,7 @@ namespace DynamicBrowserPanels
                 message = "Are you sure you want to reset the layout?\n" +
                           "This will remove all split panels and reset to a single browser.";
             }
-            
+
             var result = MessageBox.Show(
                 message,
                 "Reset Layout",
@@ -419,32 +475,48 @@ namespace DynamicBrowserPanels
 
             if (result == DialogResult.Yes)
             {
-                // If in command-line mode, end the session first
+                // If in command-line mode or session mode, end the session first
                 if (BrowserStateManager.IsCommandLineMode)
                 {
                     BrowserStateManager.EndCommandLineSession();
-                    
+
                     // Update window title to show we're back in normal mode
                     this.Text = "Dynamic Browser Panels";
                     _timerManager.UpdateOriginalTitle(this.Text);
                 }
-                
+                else if (BrowserStateManager.IsSessionMode)
+                {
+                    BrowserStateManager.EndSessionMode();
+                    
+                    // Update window title
+                    this.Text = "Dynamic Browser Panels";
+                    _timerManager.UpdateOriginalTitle(this.Text);
+                }
+
                 ResetLayout();
             }
         }
 
         /// <summary>
-        /// Handles save layout request
+        /// Handles save layout direct request (saves to loaded session file)
         /// </summary>
-        private void Browser_SaveLayoutRequested(object sender, EventArgs e)
+        private void Browser_SaveLayoutDirectRequested(object sender, EventArgs e)
         {
-            SaveCurrentLayout();
+            SaveDirectToSessionFile();
         }
 
         /// <summary>
-        /// Saves the current layout state
+        /// Handles save layout as request
         /// </summary>
-        private void SaveCurrentLayout()
+        private void Browser_SaveLayoutAsRequested(object sender, EventArgs e)
+        {
+            SaveCurrentLayoutAs();
+        }
+
+        /// <summary>
+        /// Saves directly to the loaded session file
+        /// </summary>
+        private void SaveDirectToSessionFile()
         {
             // Get the actual window bounds (not maximized bounds)
             Rectangle bounds;
@@ -455,8 +527,39 @@ namespace DynamicBrowserPanels
             else
             {
                 // Use RestoreBounds when maximized or minimized
-                bounds = this.RestoreBounds != Rectangle.Empty 
-                    ? this.RestoreBounds 
+                bounds = this.RestoreBounds != Rectangle.Empty
+                    ? this.RestoreBounds
+                    : new Rectangle(this.Location, this.Size);
+            }
+
+            var state = new BrowserState
+            {
+                FormWidth = bounds.Width,
+                FormHeight = bounds.Height,
+                FormX = bounds.X,
+                FormY = bounds.Y,
+                RootPanel = CapturePanelState(rootPanel)
+            };
+
+            BrowserStateManager.SaveToSessionFile(state);
+        }
+
+        /// <summary>
+        /// Saves the current layout state with "Save As" dialog
+        /// </summary>
+        private void SaveCurrentLayoutAs()
+        {
+            // Get the actual window bounds (not maximized bounds)
+            Rectangle bounds;
+            if (this.WindowState == FormWindowState.Normal)
+            {
+                bounds = new Rectangle(this.Location, this.Size);
+            }
+            else
+            {
+                // Use RestoreBounds when maximized or minimized
+                bounds = this.RestoreBounds != Rectangle.Empty
+                    ? this.RestoreBounds
                     : new Rectangle(this.Location, this.Size);
             }
 
@@ -479,13 +582,13 @@ namespace DynamicBrowserPanels
         private async void Browser_LoadLayoutRequested(object sender, EventArgs e)
         {
             var loadedFilePath = BrowserStateManager.LoadLayoutFrom(out var state);
-            
+
             if (state != null && !string.IsNullOrEmpty(loadedFilePath))
             {
                 // Store the loaded file name at the form level
                 _lastLoadedFileName = Path.GetFileName(loadedFilePath);
 
-                this.Text = $"{Path.GetFileName(_lastLoadedFileName)} (Read-Only) - Dynamic Browser Panels";
+                this.Text = $"{Path.GetFileName(_lastLoadedFileName)} - Dynamic Browser Panels";
                 _timerManager.UpdateOriginalTitle(this.Text);
 
                 // Reset the current layout first
@@ -496,12 +599,12 @@ namespace DynamicBrowserPanels
                 int width = state.FormWidth > 0 ? state.FormWidth : 1184;
                 int height = state.FormHeight > 0 ? state.FormHeight : 761;
                 this.Size = new Size(width, height);
-                
+
                 // Restore form position if saved
                 if (state.FormX >= 0 && state.FormY >= 0)
                 {
                     this.Location = new Point(state.FormX, state.FormY);
-                    
+
                     // Ensure the window is visible on screen
                     EnsureWindowVisible();
                 }
@@ -552,7 +655,7 @@ namespace DynamicBrowserPanels
                         // Do nothing.
                     }
                 }
-                
+
                 // Check if THIS control is a split container (not children)
                 if (control is SplitContainer splitContainer)
                 {
@@ -602,8 +705,8 @@ namespace DynamicBrowserPanels
             else
             {
                 // Use RestoreBounds when maximized or minimized
-                bounds = this.RestoreBounds != Rectangle.Empty 
-                    ? this.RestoreBounds 
+                bounds = this.RestoreBounds != Rectangle.Empty
+                    ? this.RestoreBounds
                     : new Rectangle(this.Location, this.Size);
             }
 
@@ -633,7 +736,7 @@ namespace DynamicBrowserPanels
                 {
                     // Capture tabs state
                     var tabsState = browser.GetTabsState();
-                    
+
                     if (tabsState.TabPlaylists != null)
                     {
                         for (int i = 0; i < tabsState.TabPlaylists.Count; i++)
@@ -641,7 +744,7 @@ namespace DynamicBrowserPanels
                             var pl = tabsState.TabPlaylists[i];
                         }
                     }
-                    
+
                     state.TabsState = new TabsStateData
                     {
                         SelectedTabIndex = tabsState.SelectedTabIndex,
@@ -649,7 +752,7 @@ namespace DynamicBrowserPanels
                         TabCustomNames = tabsState.TabCustomNames,
                         TabPlaylists = tabsState.TabPlaylists // ✅ Add this line to preserve playlist data
                     };
-                    
+
                     // Also save current URL for backward compatibility
                     state.Url = browser.CurrentUrl;
                     state.IsSplit = false;
@@ -660,8 +763,8 @@ namespace DynamicBrowserPanels
                     state.IsSplit = true;
                     state.SplitOrientation = splitContainer.Orientation.ToString();
                     state.SplitterDistance = splitContainer.SplitterDistance;
-                    state.PanelSize = splitContainer.Orientation == Orientation.Vertical 
-                        ? splitContainer.Width 
+                    state.PanelSize = splitContainer.Orientation == Orientation.Vertical
+                        ? splitContainer.Width
                         : splitContainer.Height;
 
                     // Capture child panels
@@ -670,7 +773,7 @@ namespace DynamicBrowserPanels
 
                     if (panel1 != null)
                         state.Panel1 = CapturePanelState(panel1);
-                    
+
                     if (panel2 != null)
                         state.Panel2 = CapturePanelState(panel2);
 
@@ -703,14 +806,14 @@ namespace DynamicBrowserPanels
             try
             {
                 var tempPath = Path.GetTempPath();
-                
+
                 // Clean up media player HTML files
                 var mediaFiles = Directory.GetFiles(tempPath, "webview_media_*.html");
                 foreach (var file in mediaFiles)
                 {
                     try { File.Delete(file); } catch { }
                 }
-                
+
                 // Clean up media error HTML files
                 var errorFiles = Directory.GetFiles(tempPath, "media_error_*.html");
                 foreach (var file in errorFiles)

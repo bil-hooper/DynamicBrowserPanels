@@ -23,6 +23,11 @@ namespace DynamicBrowserPanels
         private bool _flashState;
         private NativeWindow _messageFilter;
 
+        /// <summary>
+        /// Raised when the timer elapses (reaches zero)
+        /// </summary>
+        public event EventHandler TimerElapsed;
+
         public TimerManager(Form parentForm)
         {
             _parentForm = parentForm ?? throw new ArgumentNullException(nameof(parentForm));
@@ -145,6 +150,9 @@ namespace DynamicBrowserPanels
                 return;
 
             _isAlertPlaying = true;
+
+            // Raise event to pause all media playback
+            TimerElapsed?.Invoke(this, EventArgs.Empty);
 
             // Start flashing titlebar
             _flashTimer = new Timer { Interval = 500 }; // Flash every 500ms

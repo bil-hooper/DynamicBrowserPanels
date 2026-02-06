@@ -3,12 +3,55 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace DynamicBrowserPanels
 {
     public partial class CompactWebView2Control
     {
+        /// <summary>
+        /// Pauses all media playback (playlists and videos) in the current tab
+        /// </summary>
+        public async Task PauseAllMediaAsync()
+        {
+            var currentTab = GetCurrentTab();
+            if (currentTab?.IsInitialized != true || currentTab.WebView?.CoreWebView2 == null)
+                return;
+
+            try
+            {
+                // Execute JavaScript to pause all media elements (audio and video)
+                string pauseScript = @"
+                    (function() {
+                        // Pause all video elements
+                        var videos = document.querySelectorAll('video');
+                        for (var i = 0; i < videos.length; i++) {
+                            if (!videos[i].paused) {
+                                videos[i].pause();
+                            }
+                        }
+                        
+                        // Pause all audio elements
+                        var audios = document.querySelectorAll('audio');
+                        for (var i = 0; i < audios.length; i++) {
+                            if (!audios[i].paused) {
+                                audios[i].pause();
+                            }
+                        }
+                        
+                        return true;
+                    })();
+                ";
+
+                await currentTab.WebView.CoreWebView2.ExecuteScriptAsync(pauseScript);
+            }
+            catch
+            {
+                // Silently fail if script execution fails
+            }
+        }
+
         /// <summary>
         /// Opens a file dialog to select and play a media file
         /// </summary>

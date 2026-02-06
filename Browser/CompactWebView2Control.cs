@@ -39,7 +39,8 @@ namespace DynamicBrowserPanels
         private ToolStripMenuItem mnuSplitHorizontal;
         private ToolStripMenuItem mnuSplitVertical;
         private ToolStripSeparator separator3;
-        private ToolStripMenuItem mnuSaveLayout;
+        private ToolStripMenuItem mnuSaveLayoutDirect;
+        private ToolStripMenuItem mnuSaveLayoutAs;
         private ToolStripMenuItem mnuLoadLayout;
         private ToolStripSeparator separator4;
         private ToolStripMenuItem mnuResetLayout;
@@ -61,7 +62,8 @@ namespace DynamicBrowserPanels
         // Events
         public event EventHandler<SplitRequestedEventArgs> SplitRequested;
         public event EventHandler ResetLayoutRequested;
-        public event EventHandler SaveLayoutRequested;
+        public event EventHandler SaveLayoutDirectRequested;
+        public event EventHandler SaveLayoutAsRequested;
         public event EventHandler LoadLayoutRequested;
         public event EventHandler<TimeSpan> TimerRequested;
         public event EventHandler TimerStopRequested;
