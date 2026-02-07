@@ -48,6 +48,33 @@ namespace DynamicBrowserPanels
             };
 
         /// <summary>
+        /// Gets a safe filename from a template path (without extension or invalid characters)
+        /// </summary>
+        private static string GetSafeTemplateIdentifier(string templatePath)
+        {
+            if (string.IsNullOrEmpty(templatePath))
+                return "CurrentLayout";
+
+            // Get filename without extension
+            var fileName = Path.GetFileNameWithoutExtension(templatePath);
+            
+            // Remove invalid filename characters
+            var invalidChars = Path.GetInvalidFileNameChars();
+            foreach (var c in invalidChars)
+            {
+                fileName = fileName.Replace(c, '_');
+            }
+            
+            // Limit length to avoid path issues
+            if (fileName.Length > 50)
+            {
+                fileName = fileName.Substring(0, 50);
+            }
+            
+            return fileName;
+        }
+
+        /// <summary>
         /// Checks if a file format is supported for playback
         /// </summary>
         public static bool IsMediaSupported(string filePath)
@@ -411,20 +438,24 @@ namespace DynamicBrowserPanels
         /// Saves the HTML player to a temporary file and returns the path
         /// If a playlist is provided, creates the full playlist player view
         /// </summary>
-        public static string CreateTemporaryPlayerFile(string mediaFilePath, bool autoplay = false, bool loop = false, List<string> playlistFiles = null, int currentIndex = 0)
+        public static string CreateTemporaryPlayerFile(string mediaFilePath, bool autoplay = false, bool loop = false, List<string> playlistFiles = null, int currentIndex = 0, string templatePath = null)
         {
             // Ensure temp directory exists
             EnsureTempDirectoryExists();
 
+            // Get template identifier for filename
+            var templateId = GetSafeTemplateIdentifier(templatePath);
+
             // If we have a playlist with multiple files, use the full playlist player
             if (playlistFiles != null && playlistFiles.Count > 1)
             {
-                return CreateTemporaryPlaylistPlayerFile(playlistFiles, currentIndex, shuffle: false, repeat: false);
+                return CreateTemporaryPlaylistPlayerFile(playlistFiles, currentIndex, shuffle: false, repeat: false, templatePath);
             }
 
             // Otherwise use the simple single-track player
             var html = CreateMediaPlayerHtml(mediaFilePath, autoplay, loop, hasPlaylist: playlistFiles != null && playlistFiles.Count > 0);
-            var tempPath = Path.Combine(TempPlaylistDirectory, $"webview_media_{Guid.NewGuid()}.html");
+            // Format: webview_media_TemplateName_GUID.html
+            var tempPath = Path.Combine(TempPlaylistDirectory, $"webview_media_{templateId}_{Guid.NewGuid()}.html");
             File.WriteAllText(tempPath, html);
             return tempPath;
         }
@@ -1370,15 +1401,164 @@ namespace DynamicBrowserPanels
         /// <summary>
         /// Creates temporary HTML file for playlist player
         /// </summary>
-        public static string CreateTemporaryPlaylistPlayerFile(List<string> mediaFiles, int currentIndex = 0, bool shuffle = false, bool repeat = false)
+        public static string CreateTemporaryPlaylistPlayerFile(List<string> mediaFiles, int currentIndex = 0, bool shuffle = false, bool repeat = false, string templatePath = null)
         {
             // Ensure temp directory exists
             EnsureTempDirectoryExists();
 
+            // Get template identifier for filename
+            var templateId = GetSafeTemplateIdentifier(templatePath);
+
             var html = CreatePlaylistPlayerHtml(mediaFiles, currentIndex, shuffle, repeat);
-            var tempPath = Path.Combine(TempPlaylistDirectory, $"webview_playlist_{Guid.NewGuid()}.html");
+            // Format: webview_playlist_TemplateName_GUID.html
+            var tempPath = Path.Combine(TempPlaylistDirectory, $"webview_playlist_{templateId}_{Guid.NewGuid()}.html");
             File.WriteAllText(tempPath, html);
             return tempPath;
+        }
+
+        /// <summary>
+        /// Cleans up unused temp files belonging to the current template
+        /// </summary>
+        public static void CleanupUnusedTempFiles(string currentTemplatePath, HashSet<string> activeUrls)
+        {
+            try
+            {
+                var templateId = GetSafeTemplateIdentifier(currentTemplatePath);
+
+                if (!Directory.Exists(TempPlaylistDirectory))
+                    return;
+
+                // Convert all active URLs to file paths for comparison
+                var activeFilePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var url in activeUrls)
+                {
+                    try
+                    {
+                        var uri = new Uri(url);
+                        if (uri.Scheme == "file")
+                        {
+                            // Get the local path and normalize it
+                            var localPath = uri.LocalPath;
+                            activeFilePaths.Add(Path.GetFullPath(localPath));
+                        }
+                    }
+                    catch
+                    {
+                        // Skip invalid URLs
+                    }
+                }
+
+                // Get all temp files for this template
+                var allTempFiles = Directory.GetFiles(TempPlaylistDirectory, "webview_*.html");
+
+                foreach (var file in allTempFiles)
+                {
+                    try
+                    {
+                        var fileName = Path.GetFileName(file);
+
+                        // Check if this file belongs to the current template
+                        // Format: webview_{type}_{templateId}_{guid}.html
+                        var expectedPattern1 = $"webview_media_{templateId}_";
+                        var expectedPattern2 = $"webview_playlist_{templateId}_";
+
+                        // Only process files belonging to current template
+                        if (fileName.StartsWith(expectedPattern1) || fileName.StartsWith(expectedPattern2))
+                        {
+                            // Normalize the file path for comparison
+                            var normalizedFilePath = Path.GetFullPath(file);
+
+                            // Delete if not in active file paths
+                            if (!activeFilePaths.Contains(normalizedFilePath))
+                            {
+                                File.Delete(file);
+                            }
+                        }
+                    }
+                    catch
+                    {
+                        // Skip files that can't be deleted
+                    }
+                }
+            }
+            catch
+            {
+                // Silently fail
+            }
+        }
+
+        /// <summary>
+        /// Extracts the media file path from a webview URL
+        /// For URLs pointing to temp player files, extracts the original media path
+        /// For explicit file URLs, returns as-is
+        /// </summary>
+        public static string ExtractMediaPathFromUrl(string url)
+        {
+            if (string.IsNullOrEmpty(url))
+                return null;
+
+            try
+            {
+                var uri = new Uri(url);
+                
+                if (uri.Scheme == "file")
+                {
+                    // For file URLs, extract the local path
+                    var path = uri.LocalPath;
+                    
+                    // Check if it's a temp player URL
+                    if (IsTempMediaPlayerUrl(url))
+                    {
+                        // Extract media path from temp player HTML
+                        return ExtractMediaPathFromHtml(path);
+                    }
+                    
+                    // Otherwise, return the path directly
+                    return path;
+                }
+                else
+                {
+                    // For http/https URLs, return the URL itself
+                    return url;
+                }
+            }
+            catch
+            {
+                // If extraction fails, return null
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Gets the file name from a file path or URL
+        /// Supports URL decoding and stripping off query parameters
+        /// </summary>
+        public static string GetFileNameFromPath(string filePath)
+        {
+            if (string.IsNullOrEmpty(filePath))
+                return null;
+
+            try
+            {
+                // For file URLs, extract the local path
+                if (filePath.StartsWith("file://"))
+                {
+                    filePath = filePath.Substring(7); // Remove "file://"
+                }
+                else if (filePath.StartsWith("http://") || filePath.StartsWith("https://"))
+                {
+                    // For HTTP/S URLs, decode URI components and strip query parameters
+                    var uri = new Uri(filePath);
+                    filePath = System.Net.WebUtility.UrlDecode(uri.LocalPath);
+                }
+
+                return Path.GetFileName(filePath);
+            }
+            catch
+            {
+                // If extraction fails, return null
+            }
+            return null;
         }
     }
 }
