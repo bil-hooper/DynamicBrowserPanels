@@ -66,11 +66,25 @@ namespace DynamicBrowserPanels
                     "Audio Files|*.mp3;*.wav;*.aac;*.m4a;*.opus;*.flac;*.ogg|" +
                     "All Files|*.*";
                 openFileDialog.FilterIndex = 1;
+                
+                // Use last media directory if available
+                var lastDir = AppConfiguration.LastMediaDirectory;
+                if (!string.IsNullOrEmpty(lastDir) && Directory.Exists(lastDir))
+                {
+                    openFileDialog.InitialDirectory = lastDir;
+                }
                 openFileDialog.RestoreDirectory = true;
 
                 if (openFileDialog.ShowDialog() == DialogResult.OK)
                 {
                     var filePath = openFileDialog.FileName;
+                    
+                    // Save the directory for next time
+                    var selectedDir = Path.GetDirectoryName(filePath);
+                    if (!string.IsNullOrEmpty(selectedDir))
+                    {
+                        AppConfiguration.LastMediaDirectory = selectedDir;
+                    }
                     
                     // Validate the media file
                     if (!LocalMediaHelper.ValidateMediaFile(filePath, out string errorMessage))
@@ -183,7 +197,7 @@ namespace DynamicBrowserPanels
             
             if (result == DialogResult.Yes)
             {
-                // Load M3U file
+                // Load M3U file (don't save any directory information)
                 using (var openFileDialog = new OpenFileDialog())
                 {
                     openFileDialog.Title = "Select M3U Playlist";
@@ -201,6 +215,7 @@ namespace DynamicBrowserPanels
                         if (currentTab.Playlist.LoadFromM3U(openFileDialog.FileName))
                         {
                             mediaFiles = currentTab.Playlist.MediaFiles;
+                            // Don't save directory when loading M3U playlists
                         }
                     }
                 }
@@ -212,12 +227,22 @@ namespace DynamicBrowserPanels
                 {
                     folderDialog.Description = "Select folder containing media files";
                     folderDialog.ShowNewFolderButton = false;
+                    
+                    // Use last media directory if available
+                    var lastDir = AppConfiguration.LastMediaDirectory;
+                    if (!string.IsNullOrEmpty(lastDir) && Directory.Exists(lastDir))
+                    {
+                        folderDialog.SelectedPath = lastDir;
+                    }
 
                     if (folderDialog.ShowDialog() == DialogResult.OK)
                     {
                         if (currentTab.Playlist.LoadFromFolder(folderDialog.SelectedPath))
                         {
                             mediaFiles = currentTab.Playlist.MediaFiles;
+                            
+                            // Save the folder directory for next time
+                            AppConfiguration.LastMediaDirectory = folderDialog.SelectedPath;
                         }
                     }
                 }
@@ -244,7 +269,7 @@ namespace DynamicBrowserPanels
                     loop: false,
                     playlistFiles: mediaFiles,
                     currentIndex: 0,
-                    templatePath: templatePath  // ✅ Pass the template path
+                    templatePath: templatePath
                 );
                 var playerUrl = LocalMediaHelper.FilePathToUrl(tempHtmlPath);
                 NavigateToUrl(playerUrl);
@@ -269,15 +294,29 @@ namespace DynamicBrowserPanels
                     "All Files|*.*";
                 openFileDialog.FilterIndex = 1;
                 openFileDialog.Multiselect = true;
+                
+                // Use last media directory if available
+                var lastDir = AppConfiguration.LastMediaDirectory;
+                if (!string.IsNullOrEmpty(lastDir) && Directory.Exists(lastDir))
+                {
+                    openFileDialog.InitialDirectory = lastDir;
+                }
                 openFileDialog.RestoreDirectory = true;
 
                 if (openFileDialog.ShowDialog() == DialogResult.OK)
                 {
                     var filePaths = openFileDialog.FileNames;
                     
-                    if (filePaths.Length == 0)
-                        return;
-
+                    // Save the directory for next time (from first file)
+                    if (filePaths.Length > 0)
+                    {
+                        var selectedDir = Path.GetDirectoryName(filePaths[0]);
+                        if (!string.IsNullOrEmpty(selectedDir))
+                        {
+                            AppConfiguration.LastMediaDirectory = selectedDir;
+                        }
+                    }
+                    
                     // Filter to only supported media files
                     var validFiles = new List<string>();
                     var invalidFiles = new List<string>();
