@@ -113,6 +113,10 @@ namespace DynamicBrowserPanels
             mnuManagePasswords = new ToolStripMenuItem("🔑 Manage Passwords");
             mnuManagePasswords.Click += (s, e) => OpenPasswordManager();
 
+            // Add Dropbox sync option
+            mnuDropboxSync = new ToolStripMenuItem("☁️ Dropbox Sync...");
+            mnuDropboxSync.Click += (s, e) => OpenDropboxSync();
+
             // Add installation options
             mnuInstall = new ToolStripMenuItem("⚙️ Install Application...");
             mnuInstall.Click += (s, e) => InstallationManager.Install();
@@ -142,6 +146,7 @@ namespace DynamicBrowserPanels
                 mnuResetLayout,
                 new ToolStripSeparator(),
                 mnuManagePasswords,
+                mnuDropboxSync,
                 new ToolStripSeparator(),
                 mnuInstall,
                 mnuUninstall
@@ -223,6 +228,29 @@ namespace DynamicBrowserPanels
         private void OpenPasswordManager()
         {
             NavigateToUrl("https://passwords.google.com");
+        }
+
+        /// <summary>
+        /// Opens the Dropbox sync settings
+        /// </summary>
+        private void OpenDropboxSync()
+        {
+            try
+            {
+                using (var syncForm = new DropboxSyncForm())
+                {
+                    syncForm.ShowDialog();
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"Failed to open Dropbox sync settings:\n{ex.Message}",
+                    "Dropbox Sync Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error
+                );
+            }
         }
 
         /// <summary>

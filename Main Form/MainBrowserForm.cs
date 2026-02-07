@@ -45,10 +45,59 @@ namespace DynamicBrowserPanels
 
             // Wire up event handlers
             FormClosing += MainBrowserForm_FormClosing;
+            Load += MainBrowserForm_Load;
 
-            // Load state and cleanup
-            _ = LoadStateAsync(); // Fire and forget, but properly async
+            // Cleanup temp files
             CleanupTempFiles();
+        }
+
+        /// <summary>
+        /// Handles form load event - syncs from Dropbox then loads state
+        /// </summary>
+        private async void MainBrowserForm_Load(object sender, EventArgs e)
+        {
+            // Check if we need to sync from Dropbox
+            var syncSettings = AppConfiguration.DropboxSyncSettings;
+            bool shouldSync = syncSettings.SyncEnabled && syncSettings.IsAuthenticated;
+
+            if (shouldSync)
+            {
+                // Show syncing message
+                using (var syncForm = new Form
+                {
+                    Text = "Syncing from Dropbox...",
+                    Size = new Size(350, 120),
+                    StartPosition = FormStartPosition.CenterParent,
+                    FormBorderStyle = FormBorderStyle.FixedDialog,
+                    ControlBox = false,
+                    ShowInTaskbar = false
+                })
+                {
+                    var label = new Label
+                    {
+                        Text = "Synchronizing data from Dropbox, please wait...",
+                        Dock = DockStyle.Fill,
+                        TextAlign = ContentAlignment.MiddleCenter
+                    };
+
+                    syncForm.Controls.Add(label);
+                    syncForm.Show(this);
+                    syncForm.Refresh();
+
+                    try
+                    {
+                        // Perform startup sync
+                        await DropboxAutoSync.SyncOnStartupAsync();
+                    }
+                    catch
+                    {
+                        // Continue loading even if sync fails
+                    }
+                }
+            }
+
+            // Load state after sync completes
+            await LoadStateAsync();
         }
 
         /// <summary>
@@ -684,42 +733,118 @@ namespace DynamicBrowserPanels
         }
 
         /// <summary>
-        /// Saves the current state when closing (only in normal mode)
+        /// Saves the current state when closing (normal mode) and syncs to Dropbox
         /// </summary>
-        private void MainBrowserForm_FormClosing(object sender, FormClosingEventArgs e)
+        private async void MainBrowserForm_FormClosing(object sender, FormClosingEventArgs e)
         {
-            // In command-line mode, the file is read-only - don't save on exit
-            if (BrowserStateManager.IsCommandLineMode)
+            // Check if we need to sync to Dropbox
+            var syncSettings = AppConfiguration.DropboxSyncSettings;
+            bool shouldSync = syncSettings.SyncEnabled && syncSettings.IsAuthenticated;
+
+            if (shouldSync)
             {
-                // Just close without saving
+                // Cancel the initial close
+                e.Cancel = true;
+
+                // Show syncing message
+                using (var syncForm = new Form
+                {
+                    Text = "Syncing to Dropbox...",
+                    Size = new Size(350, 120),
+                    StartPosition = FormStartPosition.CenterParent,
+                    FormBorderStyle = FormBorderStyle.FixedDialog,
+                    ControlBox = false,
+                    ShowInTaskbar = false
+                })
+                {
+                    var label = new Label
+                    {
+                        Text = "Synchronizing data to Dropbox, please wait...",
+                        Dock = DockStyle.Fill,
+                        TextAlign = ContentAlignment.MiddleCenter
+                    };
+
+                    syncForm.Controls.Add(label);
+                    syncForm.Show(this);
+                    syncForm.Refresh();
+
+                    try
+                    {
+                        // Perform shutdown sync
+                        await DropboxAutoSync.SyncOnShutdownAsync();
+                    }
+                    catch
+                    {
+                        // Continue closing even if sync fails
+                    }
+                }
+
+                // Save the layout before closing
+                if (!BrowserStateManager.IsCommandLineMode)
+                {
+                    // Get the actual window bounds (not maximized bounds)
+                    Rectangle bounds;
+                    if (this.WindowState == FormWindowState.Normal)
+                    {
+                        bounds = new Rectangle(this.Location, this.Size);
+                    }
+                    else
+                    {
+                        // Use RestoreBounds when maximized or minimized
+                        bounds = this.RestoreBounds != Rectangle.Empty
+                            ? this.RestoreBounds
+                            : new Rectangle(this.Location, this.Size);
+                    }
+
+                    var state = new BrowserState
+                    {
+                        FormWidth = bounds.Width,
+                        FormHeight = bounds.Height,
+                        FormX = bounds.X,
+                        FormY = bounds.Y,
+                        RootPanel = CapturePanelState(rootPanel)
+                    };
+
+                    BrowserStateManager.SaveCurrentLayout(state);
+                }
+
+                // Unsubscribe from the FormClosing event to prevent recursion
+                FormClosing -= MainBrowserForm_FormClosing;
+                
+                // Now actually close the form
+                Close();
                 return;
             }
 
-            // Normal mode: save the current layout
-            // Get the actual window bounds (not maximized bounds)
-            Rectangle bounds;
-            if (this.WindowState == FormWindowState.Normal)
+            // In command-line mode, the file is read-only - don't save on exit
+            if (!BrowserStateManager.IsCommandLineMode)
             {
-                bounds = new Rectangle(this.Location, this.Size);
-            }
-            else
-            {
-                // Use RestoreBounds when maximized or minimized
-                bounds = this.RestoreBounds != Rectangle.Empty
-                    ? this.RestoreBounds
-                    : new Rectangle(this.Location, this.Size);
-            }
+                // Normal mode: save the current layout
+                // Get the actual window bounds (not maximized bounds)
+                Rectangle bounds;
+                if (this.WindowState == FormWindowState.Normal)
+                {
+                    bounds = new Rectangle(this.Location, this.Size);
+                }
+                else
+                {
+                    // Use RestoreBounds when maximized or minimized
+                    bounds = this.RestoreBounds != Rectangle.Empty
+                        ? this.RestoreBounds
+                        : new Rectangle(this.Location, this.Size);
+                }
 
-            var state = new BrowserState
-            {
-                FormWidth = bounds.Width,
-                FormHeight = bounds.Height,
-                FormX = bounds.X,
-                FormY = bounds.Y,
-                RootPanel = CapturePanelState(rootPanel)
-            };
+                var state = new BrowserState
+                {
+                    FormWidth = bounds.Width,
+                    FormHeight = bounds.Height,
+                    FormX = bounds.X,
+                    FormY = bounds.Y,
+                    RootPanel = CapturePanelState(rootPanel)
+                };
 
-            BrowserStateManager.SaveCurrentLayout(state);
+                BrowserStateManager.SaveCurrentLayout(state);
+            }
         }
 
         /// <summary>
@@ -806,19 +931,59 @@ namespace DynamicBrowserPanels
             try
             {
                 var tempPath = Path.GetTempPath();
+                var tempPlaylistPath = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "DynamicBrowserPanels",
+                    "TempPlaylists"
+                );
 
-                // Clean up media player HTML files
+                // Clean up old temp files from Windows temp folder (media player HTML files)
                 var mediaFiles = Directory.GetFiles(tempPath, "webview_media_*.html");
                 foreach (var file in mediaFiles)
                 {
-                    try { File.Delete(file); } catch { }
+                    try 
+                    { 
+                        // Only delete files older than 1 day to avoid deleting currently open sessions
+                        var fileInfo = new FileInfo(file);
+                        if (DateTime.Now - fileInfo.LastWriteTime > TimeSpan.FromDays(1))
+                        {
+                            File.Delete(file);
+                        }
+                    } 
+                    catch { }
                 }
 
-                // Clean up media error HTML files
+                // Clean up old media error HTML files
                 var errorFiles = Directory.GetFiles(tempPath, "media_error_*.html");
                 foreach (var file in errorFiles)
                 {
-                    try { File.Delete(file); } catch { }
+                    try 
+                    { 
+                        var fileInfo = new FileInfo(file);
+                        if (DateTime.Now - fileInfo.LastWriteTime > TimeSpan.FromDays(1))
+                        {
+                            File.Delete(file);
+                        }
+                    } 
+                    catch { }
+                }
+
+                // Clean up old playlist player files from app data
+                if (Directory.Exists(tempPlaylistPath))
+                {
+                    var playlistFiles = Directory.GetFiles(tempPlaylistPath, "webview_playlist_*.html");
+                    foreach (var file in playlistFiles)
+                    {
+                        try 
+                        { 
+                            var fileInfo = new FileInfo(file);
+                            if (DateTime.Now - fileInfo.LastWriteTime > TimeSpan.FromDays(1))
+                            {
+                                File.Delete(file);
+                            }
+                        } 
+                        catch { }
+                    }
                 }
             }
             catch { }

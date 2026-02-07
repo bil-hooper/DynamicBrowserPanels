@@ -16,17 +16,15 @@ namespace DynamicBrowserPanels
             "DynamicBrowserPanels"
         );
 
-        private static readonly string BackupDirectory = Path.Combine(AppContext.BaseDirectory, "Backups");
-        private static readonly string BackupConfigFileName = "backup.dat";
+        private static readonly string TemplatesDirectory = Path.Combine(
+            StateDirectory,
+            "Templates"
+        );
 
         private static readonly string CurrentLayoutPath = Path.Combine(
             StateDirectory,
             "Current Layout.frm"
         );
-
-        // Cache for the source backup directory path
-        private static string _sourceBackupDirectory = null;
-        private static bool _sourceBackupDirectoryChecked = false;
 
         /// <summary>
         /// Shared JSON serializer options for consistent serialization
@@ -73,41 +71,6 @@ namespace DynamicBrowserPanels
         }
 
         /// <summary>
-        /// Gets the source backup directory path from backup.dat if it exists
-        /// </summary>
-        private static string GetSourceBackupDirectory()
-        {
-            if (_sourceBackupDirectoryChecked)
-            {
-                return _sourceBackupDirectory;
-            }
-
-            _sourceBackupDirectoryChecked = true;
-
-            try
-            {
-                string backupConfigPath = Path.Combine(AppContext.BaseDirectory, BackupConfigFileName);
-                
-                if (File.Exists(backupConfigPath))
-                {
-                    string sourceBackupPath = File.ReadAllText(backupConfigPath).Trim();
-                    
-                    // Verify the directory exists
-                    if (!string.IsNullOrWhiteSpace(sourceBackupPath) && Directory.Exists(sourceBackupPath))
-                    {
-                        _sourceBackupDirectory = sourceBackupPath;
-                    }
-                }
-            }
-            catch
-            {
-                // If we can't read the config, just continue without source backup
-            }
-
-            return _sourceBackupDirectory;
-        }
-
-        /// <summary>
         /// Ends the command-line session and returns to normal mode
         /// </summary>
         public static void EndCommandLineSession()
@@ -122,69 +85,6 @@ namespace DynamicBrowserPanels
         public static void EndSessionMode()
         {
             LoadedSessionFilePath = null;
-        }
-
-        /// <summary>
-        /// Synchronizes files from backup directory to state directory on startup
-        /// </summary>
-        public static void SynchronizeFromBackup()
-        {
-            try
-            {
-                // If backup directory doesn't exist, nothing to sync
-                if (!Directory.Exists(BackupDirectory))
-                {
-                    return;
-                }
-
-                // Ensure state directory exists
-                if (!Directory.Exists(StateDirectory))
-                {
-                    Directory.CreateDirectory(StateDirectory);
-                }
-
-                // Get all files in backup directory (including subdirectories)
-                var backupFiles = Directory.GetFiles(BackupDirectory, "*.*", SearchOption.AllDirectories);
-
-                foreach (var backupFile in backupFiles)
-                {
-                    try
-                    {
-                        // Calculate relative path from backup directory
-                        var relativePath = Path.GetRelativePath(BackupDirectory, backupFile);
-
-                        // Calculate corresponding path in state directory
-                        var stateFile = Path.Combine(StateDirectory, relativePath);
-
-                        // Only copy if file doesn't exist in state directory
-                        if (!File.Exists(stateFile))
-                        {
-                            // Ensure target directory exists
-                            var targetDirectory = Path.GetDirectoryName(stateFile);
-                            if (!Directory.Exists(targetDirectory))
-                            {
-                                Directory.CreateDirectory(targetDirectory);
-                            }
-
-                            // Copy file from backup to state directory
-                            File.Copy(backupFile, stateFile, false);
-                        }
-                    }
-                    catch
-                    {
-                        continue;
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(
-                    $"Failed to synchronize from backup:\n{ex.Message}",
-                    "Synchronization Error",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Warning
-                );
-            }
         }
 
         /// <summary>
@@ -264,7 +164,7 @@ namespace DynamicBrowserPanels
                 saveFileDialog.Title = "Save Layout As";
                 saveFileDialog.Filter = "Layout Files (*.frm)|*.frm|All Files (*.*)|*.*";
                 saveFileDialog.DefaultExt = "frm";
-                saveFileDialog.InitialDirectory = StateDirectory;
+                saveFileDialog.InitialDirectory = TemplatesDirectory;
                 
                 // Use suggested file name if provided, otherwise use default
                 saveFileDialog.FileName = !string.IsNullOrWhiteSpace(suggestedFileName) 
@@ -296,7 +196,7 @@ namespace DynamicBrowserPanels
                 openFileDialog.Title = "Load Layout";
                 openFileDialog.Filter = "Layout Files (*.frm)|*.frm|All Files (*.*)|*.*";
                 openFileDialog.DefaultExt = "frm";
-                openFileDialog.InitialDirectory = StateDirectory;
+                openFileDialog.InitialDirectory = TemplatesDirectory;
 
                 if (openFileDialog.ShowDialog() == DialogResult.OK)
                 {
@@ -334,7 +234,7 @@ namespace DynamicBrowserPanels
         }
 
         /// <summary>
-        /// Saves the current state to a specific file path and creates a backup copy
+        /// Saves the current state to a specific file path
         /// </summary>
         private static void SaveState(BrowserState state, string filePath)
         {
@@ -349,12 +249,6 @@ namespace DynamicBrowserPanels
                 var json = JsonSerializer.Serialize(state, JsonOptions);
  
                 File.WriteAllText(filePath, json);
-
-                // Create backup copy if file is in state directory
-                if (filePath.StartsWith(StateDirectory, StringComparison.OrdinalIgnoreCase))
-                {
-                    CreateBackupCopy(filePath);
-                }
             }
             catch (Exception ex)
             {
@@ -364,58 +258,6 @@ namespace DynamicBrowserPanels
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Warning
                 );
-            }
-        }
-
-        /// <summary>
-        /// Creates a backup copy of a file from state directory to backup directories
-        /// If backup.dat exists, also backs up to the source backup directory
-        /// </summary>
-        private static void CreateBackupCopy(string stateFilePath)
-        {
-            try
-            {
-                // Calculate relative path from state directory
-                var relativePath = Path.GetRelativePath(StateDirectory, stateFilePath);
-                
-                // Backup to local backup directory (in installation folder or executable folder)
-                var localBackupFilePath = Path.Combine(BackupDirectory, relativePath);
-                CreateSingleBackup(stateFilePath, localBackupFilePath);
-
-                // If backup.dat exists, also backup to source directory
-                string sourceBackupDir = GetSourceBackupDirectory();
-                if (!string.IsNullOrEmpty(sourceBackupDir))
-                {
-                    var sourceBackupFilePath = Path.Combine(sourceBackupDir, relativePath);
-                    CreateSingleBackup(stateFilePath, sourceBackupFilePath);
-                }
-            }
-            catch (Exception ex)
-            {
-                // Don't show error to user for backup failures, just log silently
-            }
-        }
-
-        /// <summary>
-        /// Creates a single backup copy to a specific destination
-        /// </summary>
-        private static void CreateSingleBackup(string sourceFilePath, string destinationFilePath)
-        {
-            try
-            {
-                // Ensure backup directory structure exists
-                var backupFileDirectory = Path.GetDirectoryName(destinationFilePath);
-                if (!Directory.Exists(backupFileDirectory))
-                {
-                    Directory.CreateDirectory(backupFileDirectory);
-                }
-
-                // Copy file to backup location
-                File.Copy(sourceFilePath, destinationFilePath, true);
-            }
-            catch (Exception ex)
-            {
-                // Don't show error to user for backup failures, just log silently
             }
         }
 

@@ -45,6 +45,7 @@ namespace DynamicBrowserPanels
         private ToolStripSeparator separator4;
         private ToolStripMenuItem mnuResetLayout;
         private ToolStripMenuItem mnuManagePasswords;
+        private ToolStripMenuItem mnuDropboxSync;
         private ToolStripMenuItem mnuInstall;
         private ToolStripMenuItem mnuUninstall;
 

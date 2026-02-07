@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace DynamicBrowserPanels
@@ -18,8 +19,18 @@ namespace DynamicBrowserPanels
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
             
-            // Synchronize from backup directory on startup
-            BrowserStateManager.SynchronizeFromBackup();
+            // Perform startup sync asynchronously (don't block app startup)
+            Task.Run(async () =>
+            {
+                try
+                {
+                    await DropboxAutoSync.SyncOnStartupAsync();
+                }
+                catch
+                {
+                    // Silent failure - don't block app startup
+                }
+            });
             
             // Check if a .frm file was passed as a command-line argument
             if (args.Length > 0)
@@ -53,4 +64,4 @@ namespace DynamicBrowserPanels
             }
         }
     }
-}   
+}

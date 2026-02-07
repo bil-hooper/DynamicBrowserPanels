@@ -182,25 +182,9 @@ namespace DynamicBrowserPanels
                 {
                     Directory.CreateDirectory(InstallDirectory);
                 }
-
-                string sourceBackupDir = Path.Combine(currentDir, "Backups");
                 
                 // Copy all files from current directory to install directory
                 CopyDirectory(currentDir, InstallDirectory);
-
-                // Create Backups folder in install directory
-                string backupDir = Path.Combine(InstallDirectory, "Backups");
-                if (!Directory.Exists(backupDir))
-                {
-                    Directory.CreateDirectory(backupDir);
-                }
-
-                // Create backup.dat file with source backup location
-                if (Directory.Exists(sourceBackupDir))
-                {
-                    string backupConfigPath = Path.Combine(InstallDirectory, BackupConfigFileName);
-                    File.WriteAllText(backupConfigPath, sourceBackupDir);
-                }
 
                 // Register file association
                 RegisterFileAssociation();
