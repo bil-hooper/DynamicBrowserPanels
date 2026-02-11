@@ -27,6 +27,7 @@ namespace DynamicBrowserPanels
             // Enable owner-draw for custom tab colors
             tabControl.DrawMode = TabDrawMode.OwnerDrawFixed;
             tabControl.DrawItem += TabControl_DrawItem;
+            tabControl.SelectedIndexChanged += TabControl_SelectedIndexChanged; 
             
             // URL TextBox
             txtUrl.Dock = DockStyle.Top;
@@ -36,6 +37,9 @@ namespace DynamicBrowserPanels
             txtUrl.TabIndex = 0;
             txtUrl.KeyDown += TxtUrl_KeyDown;
             txtUrl.Enter += TxtUrl_Enter;
+            
+            // Create the context menu BEFORE setting it
+            CreateContextMenu();
             
             // Context menu for the URL bar
             txtUrl.ContextMenuStrip = contextMenu;
@@ -117,6 +121,19 @@ namespace DynamicBrowserPanels
         }
 
         /// <summary>
+        /// Handles tab selection changes
+        /// </summary>
+        private void TabControl_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            var currentTab = GetCurrentTab();
+            if (currentTab != null)
+            {
+                // Update URL bar to show the current tab's URL
+                txtUrl.Text = currentTab.CurrentUrl;
+            }
+        }
+
+        /// <summary>
         /// Handles URL textbox key down events
         /// </summary>
         private void TxtUrl_KeyDown(object sender, KeyEventArgs e)
@@ -138,39 +155,49 @@ namespace DynamicBrowserPanels
         }
 
         /// <summary>
-        /// Handles URL changes from browser tabs
+        /// Handles URL changes from a browser tab
         /// </summary>
         private void BrowserTab_UrlChanged(object sender, string url)
         {
-            var currentTab = GetCurrentTab();
-            if (sender == currentTab)
+            var tab = sender as BrowserTab;
+            if (tab == null) return;
+
+            // Only update URL bar if this is the currently selected tab
+            int tabIndex = _browserTabs.IndexOf(tab);
+            if (tabIndex >= 0 && tabIndex == tabControl.SelectedIndex)
             {
-                if (!txtUrl.Focused)
-                {
-                    txtUrl.Text = url;
-                }
+                txtUrl.Text = url;
             }
         }
 
         /// <summary>
-        /// Handles title changes from browser tabs
+        /// Handles title changes from a browser tab
         /// </summary>
         private void BrowserTab_TitleChanged(object sender, string title)
         {
             var tab = sender as BrowserTab;
             if (tab == null) return;
 
-            int index = _browserTabs.IndexOf(tab);
-            if (index < 0 || index >= tabControl.TabPages.Count) return;
+            // Find the tab index
+            int tabIndex = _browserTabs.IndexOf(tab);
+            if (tabIndex < 0 || tabIndex >= tabControl.TabPages.Count)
+                return;
 
-            // The event won't fire if tab has CustomName (handled in BrowserTab.cs)
-            // So if we're here, we should update the title
-            string displayTitle = title ?? $"Tab {index + 1}";
-            if (displayTitle.Length > GlobalConstants.MAX_TAB_TITLE_LENGTH)
+            // Only update the tab text if there's no custom name set
+            if (string.IsNullOrWhiteSpace(tab.CustomName))
             {
-                displayTitle = displayTitle.Substring(0, GlobalConstants.TITLE_TRUNCATE_LENGTH) + "...";
+                var tabPage = tabControl.TabPages[tabIndex];
+                
+                // Truncate long titles
+                string displayTitle = title;
+                if (displayTitle.Length > GlobalConstants.MAX_TAB_TITLE_LENGTH)
+                {
+                    displayTitle = displayTitle.Substring(0, GlobalConstants.TITLE_TRUNCATE_LENGTH) + "...";
+                }
+                
+                tabPage.Text = displayTitle;
             }
-            tabControl.TabPages[index].Text = displayTitle;
+            // If custom name is set, do nothing - the custom name takes precedence
         }
     }
 }
