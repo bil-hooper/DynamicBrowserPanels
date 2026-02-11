@@ -1,4 +1,5 @@
 using System;
+using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Microsoft.Web.WebView2.Core;
@@ -23,6 +24,8 @@ namespace DynamicBrowserPanels
         
         // Add field
         private PlaylistManager _playlist;
+        private int _notepadInstance = -1; // -1 means not a notepad
+
         public WebView2 WebView => _webView;
         public bool IsInitialized => _isInitialized;
         public string CurrentUrl => _currentUrl ?? _webView?.Source?.ToString() ?? _pendingUrl ?? "";
@@ -41,6 +44,13 @@ namespace DynamicBrowserPanels
                 }
                 return _playlist;
             }
+        }
+
+        // Add this property
+        public int NotepadInstance
+        {
+            get => _notepadInstance;
+            set => _notepadInstance = value;
         }
 
         /// <summary>
@@ -225,6 +235,11 @@ namespace DynamicBrowserPanels
                         // Handle notepad save
                         HandleNotepadSave(json);
                     }
+                    else if (json.Contains("\"refreshNotepad\"") || json.Contains("\"requestCurrentContent\""))
+                    {
+                        // Handle notepad refresh/content request
+                        HandleNotepadRefresh();
+                    }
                     else if (json.Contains("\"exportNotepad\""))
                     {
                         // Handle notepad export
@@ -235,7 +250,7 @@ namespace DynamicBrowserPanels
                         // Handle previous track
                         if (_playlist != null && _playlist.Count > 0)
                         {
-                            var prevFile = _playlist.Previous();
+                            var prevFile = _playlist.Previous();    
                             if (prevFile != null)
                             {
                                 await NavigateToPlaylistTrack(prevFile);
@@ -274,29 +289,37 @@ namespace DynamicBrowserPanels
         {
             try
             {
-                // Extract content from JSON
-                var contentStart = json.IndexOf("\"content\":\"") + 11;
-                var contentEnd = json.LastIndexOf("\"");
-                
-                if (contentStart > 11 && contentEnd > contentStart)
+                using (JsonDocument document = JsonDocument.Parse(json))
                 {
-                    var content = json.Substring(contentStart, contentEnd - contentStart);
-                    
-                    // Unescape JSON content
-                    content = System.Text.RegularExpressions.Regex.Unescape(content);
-                    
-                    var notepadData = new NotepadData
+                    int instanceNumber = -1;
+                    if (document.RootElement.TryGetProperty("instanceNumber", out JsonElement instanceElement))
                     {
-                        Content = content,
-                        HasUnsavedChanges = false
-                    };
-                    
-                    NotepadManager.SaveNotepad(notepadData);
+                        instanceNumber = instanceElement.GetInt32();
+                    }
+            
+                    if (document.RootElement.TryGetProperty("content", out JsonElement contentElement))
+                    {
+                        var content = contentElement.GetString() ?? string.Empty;
+                        content = UnescapeJavaScriptString(content);
+                
+                        // Save to JSON file
+                        var notepadData = new NotepadData
+                        {
+                            Content = content,
+                            HasUnsavedChanges = false
+                        };
+                
+                        NotepadManager.SaveNotepad(notepadData, instanceNumber);
+                
+                        // CRITICAL: Also regenerate the HTML file with the updated content
+                        // This ensures when you switch tabs and come back, you see the latest content
+                        NotepadHelper.CreateNotepadHtml(content, instanceNumber);
+                    }
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // Ignore save errors - user will see in UI
+                // Do nothing.
             }
         }
 
@@ -307,35 +330,37 @@ namespace DynamicBrowserPanels
         {
             try
             {
-                // Extract content from JSON
-                var contentStart = json.IndexOf("\"content\":\"") + 11;
-                var contentEnd = json.LastIndexOf("\"");
-                
-                if (contentStart > 11 && contentEnd > contentStart)
+                using (JsonDocument document = JsonDocument.Parse(json))
                 {
-                    var content = json.Substring(contentStart, contentEnd - contentStart);
-                    
-                    // Unescape JSON content
-                    content = System.Text.RegularExpressions.Regex.Unescape(content);
-                    
-                    // Show save file dialog
-                    using (var dialog = new SaveFileDialog())
+                    int instanceNumber = -1;
+                    if (document.RootElement.TryGetProperty("instanceNumber", out JsonElement instanceElement))
                     {
-                        dialog.Filter = "Text Files (*.txt)|*.txt|All Files (*.*)|*.*";
-                        dialog.DefaultExt = "txt";
-                        dialog.FileName = $"Notes_{DateTime.Now:yyyy-MM-dd_HHmmss}.txt";
-                        dialog.Title = "Export Notepad";
+                        instanceNumber = instanceElement.GetInt32();
+                    }
+                    
+                    if (document.RootElement.TryGetProperty("content", out JsonElement contentElement))
+                    {
+                        var content = contentElement.GetString() ?? string.Empty;
+                        content = UnescapeJavaScriptString(content);
                         
-                        if (dialog.ShowDialog() == DialogResult.OK)
+                        using (var dialog = new SaveFileDialog())
                         {
-                            if (NotepadManager.ExportToFile(content, dialog.FileName))
+                            dialog.Filter = "Text Files (*.txt)|*.txt|All Files (*.*)|*.*";
+                            dialog.DefaultExt = "txt";
+                            dialog.FileName = $"Notepad_{instanceNumber}_{DateTime.Now:yyyy-MM-dd_HHmmss}.txt";
+                            dialog.Title = "Export Notepad";
+                            
+                            if (dialog.ShowDialog() == DialogResult.OK)
                             {
-                                MessageBox.Show(
-                                    $"Notes exported successfully to:\n{dialog.FileName}",
-                                    "Export Complete",
-                                    MessageBoxButtons.OK,
-                                    MessageBoxIcon.Information
-                                );
+                                if (NotepadManager.ExportToFile(content, dialog.FileName, instanceNumber))
+                                {
+                                    MessageBox.Show(
+                                        $"Notes exported successfully to:\n{dialog.FileName}",
+                                        "Export Complete",
+                                        MessageBoxButtons.OK,
+                                        MessageBoxIcon.Information
+                                    );
+                                }
                             }
                         }
                     }
@@ -350,6 +375,23 @@ namespace DynamicBrowserPanels
                     MessageBoxIcon.Error
                 );
             }
+        }
+
+        /// <summary>
+        /// Unescapes common JavaScript string escape sequences
+        /// </summary>
+        private string UnescapeJavaScriptString(string input)
+        {
+            if (string.IsNullOrEmpty(input))
+                return input;
+
+            return input
+                .Replace("\\n", "\n")
+                .Replace("\\r", "\r")
+                .Replace("\\t", "\t")
+                .Replace("\\'", "'")
+                .Replace("\\\"", "\"")
+                .Replace("\\\\", "\\"); // Must be last to avoid double-unescaping
         }
 
         /// <summary>
@@ -373,6 +415,38 @@ namespace DynamicBrowserPanels
             catch
             {
                 // Ignore navigation errors
+            }
+        }
+
+        /// <summary>
+        /// Handles refreshing notepad content from disk
+        /// </summary>
+        private async void HandleNotepadRefresh()
+        {
+            try
+            {
+                // Load current content from disk using the instance number
+                var notepadData = NotepadManager.LoadNotepad(_notepadInstance);
+                var content = notepadData.Content ?? string.Empty;
+
+                // Escape for JSON transmission
+                var escapedContent = NotepadHelper.EscapeForJavaScript(content);
+                
+                // Send updated content to the page
+                var updateScript = $@"
+                    window.dispatchEvent(new MessageEvent('message', {{
+                        data: {{
+                            action: 'updateContent',
+                            content: ""{escapedContent}""
+                        }}
+                    }}));
+                ";
+                
+                await _webView.CoreWebView2.ExecuteScriptAsync(updateScript);
+            }
+            catch (Exception ex)
+            {
+                // Do nothing
             }
         }
 

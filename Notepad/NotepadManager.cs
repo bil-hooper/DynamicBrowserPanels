@@ -9,44 +9,57 @@ namespace DynamicBrowserPanels
     /// </summary>
     public static class NotepadManager
     {
-        private static readonly string NotepadDataPath = Path.Combine(
+            private static readonly string NotepadDataDirectory = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "DynamicBrowserPanels",
-            "Notepad.json"
+            "Notepads"
         );
 
         /// <summary>
-        /// Loads the saved notepad content
+        /// Gets the data file path for a specific notepad instance
         /// </summary>
-        public static NotepadData LoadNotepad()
+        private static string GetNotepadDataPath(int instanceNumber)
+        {
+            return Path.Combine(NotepadDataDirectory, $"Notepad_{instanceNumber}.json");
+        }
+
+        /// <summary>
+        /// Loads the saved notepad content for a specific instance
+        /// </summary>
+        public static NotepadData LoadNotepad(int instanceNumber)
         {
             try
             {
-                if (File.Exists(NotepadDataPath))
+                var notepadDataPath = GetNotepadDataPath(instanceNumber);
+                
+                if (File.Exists(notepadDataPath))
                 {
-                    var json = File.ReadAllText(NotepadDataPath);
-                    return JsonSerializer.Deserialize<NotepadData>(json) ?? new NotepadData();
+                    var json = File.ReadAllText(notepadDataPath);
+                    var data = JsonSerializer.Deserialize<NotepadData>(json) ?? new NotepadData();
+                    return data;
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // If load fails, return empty notepad
+                // Do nothing
             }
 
             return new NotepadData();
         }
 
         /// <summary>
-        /// Saves the notepad content
+        /// Saves the notepad content for a specific instance
         /// </summary>
-        public static void SaveNotepad(NotepadData data)
+        public static void SaveNotepad(NotepadData data, int instanceNumber)
         {
             try
             {
-                var directory = Path.GetDirectoryName(NotepadDataPath);
-                if (!Directory.Exists(directory))
+                var notepadDataPath = GetNotepadDataPath(instanceNumber);
+               
+                // Ensure directory exists
+                if (!Directory.Exists(NotepadDataDirectory))
                 {
-                    Directory.CreateDirectory(directory);
+                    Directory.CreateDirectory(NotepadDataDirectory);
                 }
 
                 data.LastModified = DateTime.Now;
@@ -54,7 +67,8 @@ namespace DynamicBrowserPanels
 
                 var options = new JsonSerializerOptions { WriteIndented = true };
                 var json = JsonSerializer.Serialize(data, options);
-                File.WriteAllText(NotepadDataPath, json);
+                
+                File.WriteAllText(notepadDataPath, json);
             }
             catch (Exception ex)
             {
@@ -70,7 +84,7 @@ namespace DynamicBrowserPanels
         /// <summary>
         /// Exports notepad content to a text file
         /// </summary>
-        public static bool ExportToFile(string content, string filePath)
+        public static bool ExportToFile(string content, string filePath, int instanceNumber)
         {
             try
             {
@@ -82,7 +96,7 @@ namespace DynamicBrowserPanels
                 System.Windows.Forms.MessageBox.Show(
                     $"Failed to export notepad: {ex.Message}",
                     "Export Error",
-                    System.Windows.Forms.MessageBoxButtons.OK,
+                    System.Windows.Forms.MessageBoxButtons.OK, 
                     System.Windows.Forms.MessageBoxIcon.Error
                 );
                 return false;
