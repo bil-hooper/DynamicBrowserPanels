@@ -10,7 +10,7 @@ namespace DynamicBrowserPanels
     public static class AppConfiguration
     {
         private const string ConfigFileName = "AppConfig.json";
-        
+
         private static readonly string ConfigFilePath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "DynamicBrowserPanels",
@@ -39,6 +39,30 @@ namespace DynamicBrowserPanels
                 {
                     EnsureSettingsLoaded();
                     _settings.LastCustomTimerDuration = value;
+                    SaveSettings();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets the Dropbox synchronization settings
+        /// </summary>
+        public static DropboxSyncSettings DropboxSyncSettings
+        {
+            get
+            {
+                lock (_lock)
+                {
+                    EnsureSettingsLoaded();
+                    return _settings.DropboxSyncSettings;
+                }
+            }
+            set
+            {
+                lock (_lock)
+                {
+                    EnsureSettingsLoaded();
+                    _settings.DropboxSyncSettings = value;
                     SaveSettings();
                 }
             }
@@ -110,6 +134,7 @@ namespace DynamicBrowserPanels
         private class AppSettings
         {
             public TimeSpan LastCustomTimerDuration { get; set; } = TimeSpan.FromMinutes(5);
+            public DropboxSyncSettings DropboxSyncSettings { get; set; } = new DropboxSyncSettings();
         }
     }
 }
