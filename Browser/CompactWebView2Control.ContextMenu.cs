@@ -1,5 +1,9 @@
 ﻿using System;
 using System.Windows.Forms;
+using static Dropbox.Api.TeamLog.EventCategory;
+using static Dropbox.Api.TeamLog.GroupJoinPolicy;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement.StartPanel;
 
 namespace DynamicBrowserPanels
 {
@@ -128,23 +132,22 @@ namespace DynamicBrowserPanels
             {
                 mnuBack, mnuForward, mnuRefresh, mnuHome,
                 separator1,
-                mnuOpenMedia,
-                mnuPlaylistControls,
-                mnuOpenNotepad,
-                separator1b,
-                mnuTimer,
-                new ToolStripSeparator(),
+                mnuSaveLayoutDirect, mnuSaveLayoutAs, mnuLoadLayout,
+                mnuResetLayout,
+                separator4,
                 mnuNewTab, mnuCloseTab, mnuRenameTab,
-                new ToolStripSeparator(),
                 mnuMoveTabLeft, mnuMoveTabRight,
                 mnuMoveTabToStart, mnuMoveTabToEnd,
-                separator2,
+                new ToolStripSeparator(),
                 mnuSplitHorizontal, mnuSplitVertical,
                 separator3,
-                mnuSaveLayoutDirect, mnuSaveLayoutAs, mnuLoadLayout,
-                separator4,
-                mnuResetLayout,
+                mnuOpenNotepad,
+                separator1b,
+                mnuOpenMedia,
+                mnuPlaylistControls,
                 new ToolStripSeparator(),
+                mnuTimer,
+                separator2,
                 mnuManagePasswords,
                 mnuDropboxSync,
                 new ToolStripSeparator(),
