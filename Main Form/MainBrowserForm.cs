@@ -931,19 +931,14 @@ namespace DynamicBrowserPanels
             try
             {
                 var tempPath = Path.GetTempPath();
-                var tempPlaylistPath = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                    "DynamicBrowserPanels",
-                    "TempPlaylists"
-                );
 
                 // Clean up old temp files from Windows temp folder (media player HTML files)
+                // Only delete files older than 1 day
                 var mediaFiles = Directory.GetFiles(tempPath, "webview_media_*.html");
                 foreach (var file in mediaFiles)
                 {
                     try 
                     { 
-                        // Only delete files older than 1 day to avoid deleting currently open sessions
                         var fileInfo = new FileInfo(file);
                         if (DateTime.Now - fileInfo.LastWriteTime > TimeSpan.FromDays(1))
                         {
@@ -966,24 +961,6 @@ namespace DynamicBrowserPanels
                         }
                     } 
                     catch { }
-                }
-
-                // Clean up old playlist player files from app data
-                if (Directory.Exists(tempPlaylistPath))
-                {
-                    var playlistFiles = Directory.GetFiles(tempPlaylistPath, "webview_playlist_*.html");
-                    foreach (var file in playlistFiles)
-                    {
-                        try 
-                        { 
-                            var fileInfo = new FileInfo(file);
-                            if (DateTime.Now - fileInfo.LastWriteTime > TimeSpan.FromDays(1))
-                            {
-                                File.Delete(file);
-                            }
-                        } 
-                        catch { }
-                    }
                 }
             }
             catch { }

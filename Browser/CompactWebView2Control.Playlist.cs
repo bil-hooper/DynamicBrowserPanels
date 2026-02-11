@@ -131,13 +131,17 @@ namespace DynamicBrowserPanels
                             }
                         }
                         
+                        // Get current template path
+                        var templatePath = BrowserStateManager.GetCurrentLayoutPath();
+                        
                         // Create HTML player page with the media file - use full playlist player if available
                         var tempHtmlPath = LocalMediaHelper.CreateTemporaryPlayerFile(
                             filePath,
                             autoplay: true,  // Enable autoplay for user-initiated media file opens
                             loop: false,
                             playlistFiles: playlistFiles,
-                            currentIndex: currentIndex
+                            currentIndex: currentIndex,
+                            templatePath: templatePath  // ✅ Pass the template path
                         );
                         var url = LocalMediaHelper.FilePathToUrl(tempHtmlPath);
                         
@@ -229,6 +233,9 @@ namespace DynamicBrowserPanels
                     MessageBoxIcon.Information
                 );
 
+                // Get current template path
+                var templatePath = BrowserStateManager.GetCurrentLayoutPath();
+
                 // Create the full playlist player view
                 var firstFile = mediaFiles[0];
                 var tempHtmlPath = LocalMediaHelper.CreateTemporaryPlayerFile(
@@ -236,7 +243,8 @@ namespace DynamicBrowserPanels
                     autoplay: true,
                     loop: false,
                     playlistFiles: mediaFiles,
-                    currentIndex: 0
+                    currentIndex: 0,
+                    templatePath: templatePath  // ✅ Pass the template path
                 );
                 var playerUrl = LocalMediaHelper.FilePathToUrl(tempHtmlPath);
                 NavigateToUrl(playerUrl);
@@ -357,13 +365,17 @@ namespace DynamicBrowserPanels
                                 // - OR we had an empty playlist (new playlist scenario)
                                 bool shouldAutoplay = isActivelyPlayingMedia || previousPlaylistCount == 0;
                                 
+                                // Get current template path
+                                var templatePath = BrowserStateManager.GetCurrentLayoutPath();
+                                
                                 // Recreate the playlist player with the updated playlist
                                 var tempHtmlPath = LocalMediaHelper.CreateTemporaryPlayerFile(
                                     fileToPlay,
                                     autoplay: shouldAutoplay,
                                     loop: false,
                                     playlistFiles: currentTab.Playlist.MediaFiles,
-                                    currentIndex: indexToPlay
+                                    currentIndex: indexToPlay,
+                                    templatePath: templatePath  // ✅ Pass the template path
                                 );
                                 var playerUrl = LocalMediaHelper.FilePathToUrl(tempHtmlPath);
                                 NavigateToUrl(playerUrl);

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic; 
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -103,6 +104,9 @@ namespace DynamicBrowserPanels
             {
                 // Normal mode, save to Current Layout.frm
                 SaveState(state, CurrentLayoutPath);
+                
+                // DO NOT clean up temp files for Current Layout
+                // Only clean up when saving templates
             }
         }
 
@@ -117,6 +121,10 @@ namespace DynamicBrowserPanels
             try
             {
                 SaveState(state, LoadedSessionFilePath);
+                
+                // Clean up unused temp files for this template
+                CleanupUnusedTempFilesForTemplate(LoadedSessionFilePath, state);
+                
                 MessageBox.Show(
                     $"Layout saved successfully to:\n{LoadedSessionFilePath}",
                     "Layout Saved",
@@ -134,23 +142,6 @@ namespace DynamicBrowserPanels
                     MessageBoxIcon.Error
                 );
                 return false;
-            }
-        }
-
-        /// <summary>
-        /// Loads the current layout from the session file
-        /// </summary>
-        public static BrowserState LoadCurrentLayout()
-        {
-            if (IsCommandLineMode)
-            {
-                // In command-line mode, load from the specified file
-                return LoadState(SessionFilePath);
-            }
-            else
-            {
-                // Normal mode, load from Current Layout.frm
-                return LoadState(CurrentLayoutPath);
             }
         }
 
@@ -174,6 +165,10 @@ namespace DynamicBrowserPanels
                 if (saveFileDialog.ShowDialog() == DialogResult.OK)
                 {
                     SaveState(state, saveFileDialog.FileName);
+                    
+                    // Clean up unused temp files for this template
+                    CleanupUnusedTempFilesForTemplate(saveFileDialog.FileName, state);
+                    
                     MessageBox.Show(
                         $"Layout saved successfully to:\n{saveFileDialog.FileName}",
                         "Layout Saved",
@@ -187,50 +182,70 @@ namespace DynamicBrowserPanels
         }
 
         /// <summary>
-        /// Loads a layout from a file chosen by the user and returns the file path
+        /// Cleans up unused temp files for a specific template
         /// </summary>
-        public static string LoadLayoutFrom(out BrowserState state)
+        private static void CleanupUnusedTempFilesForTemplate(string templatePath, BrowserState state)
         {
-            using (var openFileDialog = new OpenFileDialog())
+            try
             {
-                openFileDialog.Title = "Load Layout";
-                openFileDialog.Filter = "Layout Files (*.frm)|*.frm|All Files (*.*)|*.*";
-                openFileDialog.DefaultExt = "frm";
-                openFileDialog.InitialDirectory = TemplatesDirectory;
+                // Collect all active URLs from the state
+                var activeUrls = new HashSet<string>();
+                CollectActiveUrls(state.RootPanel, activeUrls);
+                
+                // Clean up temp files not in use
+                LocalMediaHelper.CleanupUnusedTempFiles(templatePath, activeUrls);
+            }
+            catch
+            {
+                // Silently fail - cleanup is not critical
+            }
+        }
 
-                if (openFileDialog.ShowDialog() == DialogResult.OK)
+        /// <summary>
+        /// Recursively collects all active URLs from panel state
+        /// </summary>
+        private static void CollectActiveUrls(PanelState panelState, HashSet<string> activeUrls)
+        {
+            if (panelState == null)
+                return;
+
+            if (panelState.IsSplit)
+            {
+                // Recurse into child panels
+                CollectActiveUrls(panelState.Panel1, activeUrls);
+                CollectActiveUrls(panelState.Panel2, activeUrls);
+            }
+            else
+            {
+                // Collect URLs from tabs
+                if (panelState.TabsState?.TabUrls != null)
                 {
-                    try
+                    foreach (var url in panelState.TabsState.TabUrls)
                     {
-                        state = LoadState(openFileDialog.FileName);
-                        
-                        // Set the loaded session file path (enters session mode)
-                        LoadedSessionFilePath = openFileDialog.FileName;
-                        
-                        MessageBox.Show(
-                            $"Layout loaded successfully from:\n{openFileDialog.FileName}",
-                            "Layout Loaded",
-                            MessageBoxButtons.OK,
-                            MessageBoxIcon.Information
-                        );
-                        return openFileDialog.FileName;
-                    }
-                    catch (Exception ex)
-                    {
-                        MessageBox.Show(
-                            $"Failed to load layout:\n{ex.Message}",
-                            "Load Error",
-                            MessageBoxButtons.OK,
-                            MessageBoxIcon.Error
-                        );
-                        state = null;
-                        return null;
+                        if (!string.IsNullOrEmpty(url) && LocalMediaHelper.IsTempMediaPlayerUrl(url))
+                        {
+                            activeUrls.Add(url);
+                        }
                     }
                 }
             }
-            
-            state = null;
-            return null;
+        }
+
+        /// <summary>
+        /// Loads the current layout from the session file
+        /// </summary>
+        public static BrowserState LoadCurrentLayout()
+        {
+            if (IsCommandLineMode)
+            {
+                // In command-line mode, load from the specified file
+                return LoadState(SessionFilePath);
+            }
+            else
+            {
+                // Normal mode, load from Current Layout.frm
+                return LoadState(CurrentLayoutPath);
+            }
         }
 
         /// <summary>
@@ -341,6 +356,56 @@ namespace DynamicBrowserPanels
                     Url = GlobalConstants.DEFAULT_URL
                 }
             };
+        }
+
+        /// <summary>
+        /// Gets the path to the current layout file being used
+        /// </summary>
+        public static string GetCurrentLayoutPath()
+        {
+            if (IsCommandLineMode)
+            {
+                return SessionFilePath;
+            }
+            else if (IsSessionMode)
+            {
+                return LoadedSessionFilePath;
+            }
+            else
+            {
+                return CurrentLayoutPath;
+            }
+        }
+
+        /// <summary>
+        /// Loads a layout from a user-selected file and sets it as the active session
+        /// </summary>
+        public static string LoadLayoutFrom(out BrowserState state)
+        {
+            state = null;
+            
+            using (var openFileDialog = new OpenFileDialog())
+            {
+                openFileDialog.Title = "Load Layout";
+                openFileDialog.Filter = "Layout Files (*.frm)|*.frm|All Files (*.*)|*.*";
+                openFileDialog.DefaultExt = "frm";
+                openFileDialog.InitialDirectory = TemplatesDirectory;
+
+                if (openFileDialog.ShowDialog() == DialogResult.OK)
+                {
+                    state = LoadState(openFileDialog.FileName);
+                    
+                    if (state != null)
+                    {
+                        // Set this as the loaded session file (not command-line mode)
+                        LoadedSessionFilePath = openFileDialog.FileName;
+                        
+                        return openFileDialog.FileName;
+                    }
+                }
+            }
+            
+            return null;
         }
     }
 }
