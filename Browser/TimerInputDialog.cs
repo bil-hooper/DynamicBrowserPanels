@@ -17,18 +17,23 @@ namespace DynamicBrowserPanels
         private Label lblHours;
         private Label lblMinutes;
         private Label lblSeconds;
+        private Label lblTimeInfo;
+        private Timer updateTimer;
 
         public TimeSpan TimerDuration { get; private set; }
 
         public TimerInputDialog()
         {
             InitializeComponent();
+            LoadLastCustomTimer();
+            SetupUpdateTimer();
+            UpdateTimeInfo();
         }
 
         private void InitializeComponent()
         {
             this.Text = "Set Custom Timer";
-            this.Size = new Size(320, 220);
+            this.Size = new Size(360, 260);
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.StartPosition = FormStartPosition.CenterParent;
             this.MaximizeBox = false;
@@ -59,6 +64,7 @@ namespace DynamicBrowserPanels
                 Maximum = 23,
                 Value = 0
             };
+            numHours.ValueChanged += NumericUpDown_ValueChanged;
 
             currentY += verticalSpacing;
 
@@ -79,6 +85,7 @@ namespace DynamicBrowserPanels
                 Maximum = 59,
                 Value = 5
             };
+            numMinutes.ValueChanged += NumericUpDown_ValueChanged;
 
             currentY += verticalSpacing;
 
@@ -99,8 +106,21 @@ namespace DynamicBrowserPanels
                 Maximum = 59,
                 Value = 0
             };
+            numSeconds.ValueChanged += NumericUpDown_ValueChanged;
 
-            currentY += verticalSpacing + 15;
+            currentY += verticalSpacing + 10;
+
+            // Time info label
+            lblTimeInfo = new Label
+            {
+                Location = new Point(leftMargin, currentY),
+                Size = new Size(this.ClientSize.Width - (leftMargin * 2), 40),
+                TextAlign = ContentAlignment.MiddleCenter,
+                Font = new Font(this.Font.FontFamily, 9, FontStyle.Regular),
+                ForeColor = Color.FromArgb(64, 64, 64)
+            };
+
+            currentY += 50;
 
             // Buttons
             const int buttonWidth = 90;
@@ -133,11 +153,71 @@ namespace DynamicBrowserPanels
                 lblHours, numHours,
                 lblMinutes, numMinutes,
                 lblSeconds, numSeconds,
+                lblTimeInfo,
                 btnOk, btnCancel
             });
 
             AcceptButton = btnOk;
             CancelButton = btnCancel;
+        }
+
+        /// <summary>
+        /// Sets up the timer to update time info every second
+        /// </summary>
+        private void SetupUpdateTimer()
+        {
+            updateTimer = new Timer
+            {
+                Interval = 1000 // Update every second
+            };
+            updateTimer.Tick += (s, e) => UpdateTimeInfo();
+            updateTimer.Start();
+        }
+
+        /// <summary>
+        /// Handles value changes in numeric up/down controls
+        /// </summary>
+        private void NumericUpDown_ValueChanged(object sender, EventArgs e)
+        {
+            UpdateTimeInfo();
+        }
+
+        /// <summary>
+        /// Updates the time information label
+        /// </summary>
+        private void UpdateTimeInfo()
+        {
+            DateTime now = DateTime.Now;
+            int hours = (int)numHours.Value;
+            int minutes = (int)numMinutes.Value;
+            int seconds = (int)numSeconds.Value;
+            
+            TimeSpan duration = new TimeSpan(hours, minutes, seconds);
+            DateTime endTime = now.Add(duration);
+
+            string currentTimeStr = now.ToString("h:mm:ss tt");
+            string endTimeStr = endTime.ToString("h:mm:ss tt");
+
+            lblTimeInfo.Text = $"Current: {currentTimeStr}\nTimer End: {endTimeStr}";
+        }
+
+        /// <summary>
+        /// Loads the last custom timer value from configuration
+        /// </summary>
+        private void LoadLastCustomTimer()
+        {
+            try
+            {
+                TimeSpan lastDuration = AppConfiguration.LastCustomTimerDuration;
+                
+                numHours.Value = lastDuration.Hours;
+                numMinutes.Value = lastDuration.Minutes;
+                numSeconds.Value = lastDuration.Seconds;
+            }
+            catch
+            {
+                // If loading fails, keep default values
+            }
         }
 
         private void BtnOk_Click(object sender, EventArgs e)
@@ -159,6 +239,23 @@ namespace DynamicBrowserPanels
             }
 
             TimerDuration = new TimeSpan(hours, minutes, seconds);
+            
+            // Save this duration for future use
+            AppConfiguration.LastCustomTimerDuration = TimerDuration;
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                if (updateTimer != null)
+                {
+                    updateTimer.Stop();
+                    updateTimer.Dispose();
+                    updateTimer = null;
+                }
+            }
+            base.Dispose(disposing);
         }
     }
 }

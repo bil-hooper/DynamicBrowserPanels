@@ -33,6 +33,8 @@ namespace DynamicBrowserPanels
         private ToolStripMenuItem mnuRenameTab;
         private ToolStripMenuItem mnuMoveTabLeft;
         private ToolStripMenuItem mnuMoveTabRight;
+        private ToolStripMenuItem mnuMoveTabToStart;
+        private ToolStripMenuItem mnuMoveTabToEnd;
         private ToolStripSeparator separator2;
         private ToolStripMenuItem mnuSplitHorizontal;
         private ToolStripMenuItem mnuSplitVertical;
