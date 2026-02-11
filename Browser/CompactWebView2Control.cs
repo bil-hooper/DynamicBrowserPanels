@@ -47,6 +47,8 @@ namespace DynamicBrowserPanels
         private ToolStripMenuItem mnuDropboxSync;
         private ToolStripMenuItem mnuInstall;
         private ToolStripMenuItem mnuUninstall;
+        private ToolStripMenuItem mnuSaveProtectedTemplate;
+        private ToolStripMenuItem mnuRemoveTemplateProtection;
 
         // Tab management
         private List<BrowserTab> _browserTabs = new List<BrowserTab>();
@@ -72,6 +74,8 @@ namespace DynamicBrowserPanels
         public event EventHandler LoadLayoutRequested;
         public event EventHandler<TimeSpan> TimerRequested;
         public event EventHandler TimerStopRequested;
+        public event EventHandler SaveProtectedTemplateRequested;
+        public event EventHandler RemoveTemplateProtectionRequested;
 
         public CompactWebView2Control()
         {

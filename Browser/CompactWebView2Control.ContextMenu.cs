@@ -28,6 +28,7 @@ namespace DynamicBrowserPanels
             
             mnuHome = new ToolStripMenuItem("⌂ Home");
             mnuHome.Click += (s, e) => GoHome();
+            
             mnuOpenMedia = new ToolStripMenuItem("📁 Open Media File...");
             mnuOpenMedia.Click += (s, e) => OpenMediaFile();
 
@@ -49,7 +50,6 @@ namespace DynamicBrowserPanels
 
             mnuOpenNotepad = new ToolStripMenuItem("📝 Open Notepad");
             mnuOpenNotepad.Click += (s, e) => OpenNotepad();
-
             
             // Timer menu
             mnuTimer = new ToolStripMenuItem("⏱ Timer");
@@ -67,7 +67,7 @@ namespace DynamicBrowserPanels
                 new ToolStripSeparator(),
                 new ToolStripMenuItem("⏹ Stop Timer", null, (s, e) => StopTimer())
             });
-                
+            
             // History menu
             mnuHistory = new ToolStripMenuItem("📜 History");
             mnuHistory.DropDownItems.AddRange(new ToolStripItem[]
@@ -103,6 +103,7 @@ namespace DynamicBrowserPanels
             
             mnuMoveTabToEnd = new ToolStripMenuItem("Move Tab to End ⇥");
             mnuMoveTabToEnd.Click += (s, e) => MoveTabToEnd();
+            
             mnuSplitHorizontal = new ToolStripMenuItem("Split Horizontal ⬌");
             mnuSplitHorizontal.Click += (s, e) => OnSplitRequested(Orientation.Horizontal);
             
@@ -115,9 +116,16 @@ namespace DynamicBrowserPanels
             mnuSaveLayoutAs = new ToolStripMenuItem("💾 Save Layout As...");
             mnuSaveLayoutAs.Click += (s, e) => SaveLayoutAsRequested?.Invoke(this, EventArgs.Empty);
             
+            // Add password-protected template menu items
+            mnuSaveProtectedTemplate = new ToolStripMenuItem("🔐 Save Password-Protected Template...");
+            mnuSaveProtectedTemplate.Click += (s, e) => SaveProtectedTemplateRequested?.Invoke(this, EventArgs.Empty);
+            
+            mnuRemoveTemplateProtection = new ToolStripMenuItem("🔓 Remove Template Protection...");
+            mnuRemoveTemplateProtection.Click += (s, e) => RemoveTemplateProtectionRequested?.Invoke(this, EventArgs.Empty);
+            
             mnuLoadLayout = new ToolStripMenuItem("📂 Load Layout...");
             mnuLoadLayout.Click += (s, e) => LoadLayoutRequested?.Invoke(this, EventArgs.Empty);
-                
+            
             mnuResetLayout = new ToolStripMenuItem("Reset Layout");
             mnuResetLayout.Click += (s, e) => ResetLayoutRequested?.Invoke(this, EventArgs.Empty);
 
@@ -145,6 +153,8 @@ namespace DynamicBrowserPanels
                 new ToolStripSeparator(),
                 mnuSaveLayoutDirect, 
                 mnuSaveLayoutAs, 
+                mnuSaveProtectedTemplate,
+                mnuRemoveTemplateProtection,
                 mnuLoadLayout,
                 mnuResetLayout,
                 new ToolStripSeparator(),
@@ -235,6 +245,9 @@ namespace DynamicBrowserPanels
             // Enable "Save Layout" only when in session mode (file is loaded)
             bool isSessionMode = BrowserStateManager.IsSessionMode;
             mnuSaveLayoutDirect.Enabled = isSessionMode;
+            
+            // Enable "Remove Template Protection" only when in session mode
+            mnuRemoveTemplateProtection.Enabled = isSessionMode;
             
             // Update text to show filename if in session mode
             if (isSessionMode && !string.IsNullOrEmpty(BrowserStateManager.SessionFileName))

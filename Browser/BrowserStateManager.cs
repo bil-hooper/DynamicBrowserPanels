@@ -50,6 +50,11 @@ namespace DynamicBrowserPanels
         public static string LoadedSessionFilePath { get; set; }
 
         /// <summary>
+        /// Gets or sets the password for the currently loaded password-protected template
+        /// </summary>
+        private static string CurrentTemplatePassword { get; set; }
+
+        /// <summary>
         /// Gets whether the application is in command-line mode (opened with a specific file)
         /// </summary>
         public static bool IsCommandLineMode => !string.IsNullOrEmpty(SessionFilePath);
@@ -87,6 +92,279 @@ namespace DynamicBrowserPanels
         public static void EndSessionMode()
         {
             LoadedSessionFilePath = null;
+        }
+
+
+        /// <summary>
+        /// Saves a password-protected template (establishes NEW password protection)
+        /// </summary>
+        public static bool SavePasswordProtectedTemplate(BrowserState state, string suggestedFileName = null)
+        {
+            using (var dialog = new SaveProtectedTemplateDialog(suggestedFileName))
+            {
+                if (dialog.ShowDialog() == DialogResult.OK)
+                {
+                    try
+                    {
+                        // Ensure templates directory exists
+                        if (!Directory.Exists(TemplatesDirectory))
+                        {
+                            Directory.CreateDirectory(TemplatesDirectory);
+                        }
+
+                        var filePath = Path.Combine(TemplatesDirectory, dialog.FileName);
+
+                        // Create a copy of the state with encrypted URLs
+                        var encryptedState = EncryptStateUrls(state, dialog.Password);
+
+                        // Set the password hash
+                        encryptedState.PasswordHash = TemplateEncryption.HashPassword(dialog.Password);
+
+                        // Save the encrypted state
+                        var json = JsonSerializer.Serialize(encryptedState, JsonOptions);
+                        File.WriteAllText(filePath, json);
+
+                        // Clean up unused temp files
+                        CleanupUnusedTempFilesForTemplate(filePath, state);
+
+                        // Delete Current Layout.frm
+                        DeleteCurrentLayout();
+
+                        // Set as loaded session
+                        LoadedSessionFilePath = filePath;
+
+                        MessageBox.Show(
+                            $"Password-protected template saved successfully to:\n{filePath}",
+                            "Template Saved",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Information
+                        );
+
+                        return true;
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show(
+                            $"Failed to save password-protected template:\n{ex.Message}",
+                            "Save Error",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Error
+                        );
+                        return false;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Removes password protection from a template
+        /// </summary>
+        public static bool SaveWithoutPasswordProtection(BrowserState state)
+        {
+            if (!IsSessionMode)
+                return false;
+
+            try
+            {
+                // Load the existing template to check if it's password protected
+                var json = File.ReadAllText(LoadedSessionFilePath);
+                var existingState = JsonSerializer.Deserialize<BrowserState>(json, JsonOptions);
+
+                if (!string.IsNullOrEmpty(existingState?.PasswordHash))
+                {
+                    // Password protected - verify password first
+                    using (var passwordDialog = new PasswordVerificationDialog("Enter Password to Remove Protection"))
+                    {
+                        if (passwordDialog.ShowDialog() == DialogResult.OK)
+                        {
+                            if (!TemplateEncryption.VerifyPassword(passwordDialog.Password, existingState.PasswordHash))
+                            {
+                                MessageBox.Show(
+                                    "Incorrect password. Protection not removed.",
+                                    "Authentication Failed",
+                                    MessageBoxButtons.OK,
+                                    MessageBoxIcon.Error);
+                                return false;
+                            }
+                        }
+                        else
+                        {
+                            return false;
+                        }
+                    }
+                }
+
+                // Save without password hash or encryption
+                var unprotectedState = new BrowserState
+                {
+                    FormWidth = state.FormWidth,
+                    FormHeight = state.FormHeight,
+                    FormX = state.FormX,
+                    FormY = state.FormY,
+                    RootPanel = state.RootPanel,
+                    PasswordHash = null // Remove password protection
+                };
+
+                json = JsonSerializer.Serialize(unprotectedState, JsonOptions);
+                File.WriteAllText(LoadedSessionFilePath, json);
+
+                // Clean up unused temp files
+                CleanupUnusedTempFilesForTemplate(LoadedSessionFilePath, state);
+
+                // Delete Current Layout.frm
+                DeleteCurrentLayout();
+
+                MessageBox.Show(
+                    $"Password protection removed. Template saved to:\n{LoadedSessionFilePath}",
+                    "Protection Removed",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information
+                );
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"Failed to save template:\n{ex.Message}",
+                    "Save Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error
+                );
+                return false;
+            }
+        }
+
+
+        /// <summary>
+        /// Encrypts all URLs in the state
+        /// </summary>
+        private static BrowserState EncryptStateUrls(BrowserState state, string password)
+        {
+            var encryptedState = new BrowserState
+            {
+                FormWidth = state.FormWidth,
+                FormHeight = state.FormHeight,
+                FormX = state.FormX,
+                FormY = state.FormY,
+                RootPanel = EncryptPanelUrls(state.RootPanel, password)
+            };
+
+            return encryptedState;
+        }
+
+        /// <summary>
+        /// Recursively encrypts URLs in panel state
+        /// </summary>
+        private static PanelState EncryptPanelUrls(PanelState panel, string password)
+        {
+            if (panel == null)
+                return null;
+
+            var encryptedPanel = new PanelState
+            {
+                IsSplit = panel.IsSplit,
+                SplitOrientation = panel.SplitOrientation,
+                SplitterDistance = panel.SplitterDistance,
+                PanelSize = panel.PanelSize
+            };
+
+            if (panel.IsSplit)
+            {
+                encryptedPanel.Panel1 = EncryptPanelUrls(panel.Panel1, password);
+                encryptedPanel.Panel2 = EncryptPanelUrls(panel.Panel2, password);
+            }
+            else
+            {
+                // Encrypt the URL
+                encryptedPanel.Url = TemplateEncryption.EncryptUrl(panel.Url, password);
+
+                // Encrypt URLs in tabs
+                if (panel.TabsState != null)
+                {
+                    encryptedPanel.TabsState = new TabsStateData
+                    {
+                        SelectedTabIndex = panel.TabsState.SelectedTabIndex,
+                        TabCustomNames = panel.TabsState.TabCustomNames,
+                        TabPlaylists = panel.TabsState.TabPlaylists,
+                        TabUrls = new List<string>()
+                    };
+
+                    foreach (var url in panel.TabsState.TabUrls)
+                    {
+                        encryptedPanel.TabsState.TabUrls.Add(TemplateEncryption.EncryptUrl(url, password));
+                    }
+                }
+            }
+
+            return encryptedPanel;
+        }
+
+        /// <summary>
+        /// Decrypts all URLs in the state
+        /// </summary>
+        private static BrowserState DecryptStateUrls(BrowserState state, string password)
+        {
+            var decryptedState = new BrowserState
+            {
+                FormWidth = state.FormWidth,
+                FormHeight = state.FormHeight,
+                FormX = state.FormX,
+                FormY = state.FormY,
+                PasswordHash = state.PasswordHash,
+                RootPanel = DecryptPanelUrls(state.RootPanel, password)
+            };
+
+            return decryptedState;
+        }
+
+        /// <summary>
+        /// Recursively decrypts URLs in panel state
+        /// </summary>
+        private static PanelState DecryptPanelUrls(PanelState panel, string password)
+        {
+            if (panel == null)
+                return null;
+
+            var decryptedPanel = new PanelState
+            {
+                IsSplit = panel.IsSplit,
+                SplitOrientation = panel.SplitOrientation,
+                SplitterDistance = panel.SplitterDistance,
+                PanelSize = panel.PanelSize
+            };
+
+            if (panel.IsSplit)
+            {
+                decryptedPanel.Panel1 = DecryptPanelUrls(panel.Panel1, password);
+                decryptedPanel.Panel2 = DecryptPanelUrls(panel.Panel2, password);
+            }
+            else
+            {
+                // Decrypt the URL
+                decryptedPanel.Url = TemplateEncryption.DecryptUrl(panel.Url, password);
+
+                // Decrypt URLs in tabs
+                if (panel.TabsState != null)
+                {
+                    decryptedPanel.TabsState = new TabsStateData
+                    {
+                        SelectedTabIndex = panel.TabsState.SelectedTabIndex,
+                        TabCustomNames = panel.TabsState.TabCustomNames,
+                        TabPlaylists = panel.TabsState.TabPlaylists,
+                        TabUrls = new List<string>()
+                    };
+
+                    foreach (var url in panel.TabsState.TabUrls)
+                    {
+                        decryptedPanel.TabsState.TabUrls.Add(TemplateEncryption.DecryptUrl(url, password));
+                    }
+                }
+            }
+
+            return decryptedPanel;
         }
 
         /// <summary>
@@ -143,6 +421,7 @@ namespace DynamicBrowserPanels
 
         /// <summary>
         /// Saves directly to the loaded session file
+        /// Handles both password-protected and regular templates
         /// </summary>
         public static bool SaveToSessionFile(BrowserState state)
         {
@@ -151,10 +430,66 @@ namespace DynamicBrowserPanels
 
             try
             {
+                // Load the existing template to check if it's password protected
+                var json = File.ReadAllText(LoadedSessionFilePath);
+                var existingState = JsonSerializer.Deserialize<BrowserState>(json, JsonOptions);
+
+                if (!string.IsNullOrEmpty(existingState?.PasswordHash))
+                {
+                    // Password protected - always prompt for password to save with same protection
+                    using (var passwordDialog = new PasswordVerificationDialog("Enter Password to Save"))
+                    {
+                        if (passwordDialog.ShowDialog() == DialogResult.OK)
+                        {
+                            // Verify password
+                            if (!TemplateEncryption.VerifyPassword(passwordDialog.Password, existingState.PasswordHash))
+                            {
+                                MessageBox.Show(
+                                    "Incorrect password. Changes not saved.",
+                                    "Authentication Failed",
+                                    MessageBoxButtons.OK,
+                                    MessageBoxIcon.Error);
+                                return false;
+                            }
+                            
+                            // Encrypt URLs and save with the same password hash
+                            var encryptedState = EncryptStateUrls(state, passwordDialog.Password);
+                            encryptedState.PasswordHash = existingState.PasswordHash;
+                            
+                            json = JsonSerializer.Serialize(encryptedState, JsonOptions);
+                            File.WriteAllText(LoadedSessionFilePath, json);
+                            
+                            // Clean up unused temp files
+                            CleanupUnusedTempFilesForTemplate(LoadedSessionFilePath, state);
+                            
+                            // Delete Current Layout.frm on successful save
+                            DeleteCurrentLayout();
+                            
+                            MessageBox.Show(
+                                $"Template saved successfully to:\n{LoadedSessionFilePath}",
+                                "Template Saved",
+                                MessageBoxButtons.OK,
+                                MessageBoxIcon.Information
+                            );
+                            
+                            return true;
+                        }
+                        else
+                        {
+                            // User cancelled
+                            return false;
+                        }
+                    }
+                }
+                
+                // Not password protected - save normally
                 SaveState(state, LoadedSessionFilePath);
                 
                 // Clean up unused temp files for this template
                 CleanupUnusedTempFilesForTemplate(LoadedSessionFilePath, state);
+                
+                // Delete Current Layout.frm on successful save
+                DeleteCurrentLayout();
                 
                 MessageBox.Show(
                     $"Layout saved successfully to:\n{LoadedSessionFilePath}",
@@ -444,12 +779,38 @@ namespace DynamicBrowserPanels
         }
 
         /// <summary>
+        /// Loads a layout from a specific file path and sets it as the active session
+        /// Handles password-protected templates
+        /// </summary>
+        public static BrowserState LoadLayoutFrom(string filePath, out string password)
+        {
+            password = null;
+
+            if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath))
+                return null;
+
+            var state = LoadStateWithPasswordCheck(filePath, out password);
+
+            if (state != null)
+            {
+                // Set this as the loaded session file
+                LoadedSessionFilePath = filePath;
+
+                // Delete Current Layout.frm on successful load
+                DeleteCurrentLayout();
+            }
+
+            return state;
+        }
+
+        /// <summary>
         /// Loads a layout from a user-selected file and sets it as the active session
+        /// Handles password-protected templates
         /// </summary>
         public static string LoadLayoutFrom(out BrowserState state)
         {
             state = null;
-            
+
             using (var openFileDialog = new OpenFileDialog())
             {
                 openFileDialog.Title = "Load Layout";
@@ -459,19 +820,91 @@ namespace DynamicBrowserPanels
 
                 if (openFileDialog.ShowDialog() == DialogResult.OK)
                 {
-                    state = LoadState(openFileDialog.FileName);
-                    
+                    state = LoadStateWithPasswordCheck(openFileDialog.FileName, out string password);
+
                     if (state != null)
                     {
-                        // Set this as the loaded session file (not command-line mode)
+                        // Set this as the loaded session file
                         LoadedSessionFilePath = openFileDialog.FileName;
-                        
+
+                        // Delete Current Layout.frm on successful load
+                        DeleteCurrentLayout();
+
                         return openFileDialog.FileName;
                     }
                 }
             }
-            
+
             return null;
+        }
+
+
+        /// <summary>
+        /// Loads state from a file, prompting for password if needed
+        /// </summary>
+        private static BrowserState LoadStateWithPasswordCheck(string filePath, out string password)
+        {
+            password = null;
+
+            try
+            {
+                if (!File.Exists(filePath))
+                {
+                    return CreateDefaultState();
+                }
+
+                var json = File.ReadAllText(filePath);
+                var state = JsonSerializer.Deserialize<BrowserState>(json, JsonOptions);
+
+                if (state == null)
+                    return CreateDefaultState();
+
+                // Check if password protected
+                if (!string.IsNullOrEmpty(state.PasswordHash))
+                {
+                    // Prompt for password
+                    using (var passwordDialog = new PasswordVerificationDialog("Enter Password to Load Template"))
+                    {
+                        if (passwordDialog.ShowDialog() == DialogResult.OK)
+                        {
+                            // Verify password
+                            if (TemplateEncryption.VerifyPassword(passwordDialog.Password, state.PasswordHash))
+                            {
+                                password = passwordDialog.Password;
+                                // Decrypt URLs before returning
+                                return DecryptStateUrls(state, password);
+                            }
+                            else
+                            {
+                                MessageBox.Show(
+                                    "Incorrect password. Template not loaded.",
+                                    "Authentication Failed",
+                                    MessageBoxButtons.OK,
+                                    MessageBoxIcon.Error);
+                                return null;
+                            }
+                        }
+                        else
+                        {
+                            // User cancelled
+                            return null;
+                        }
+                    }
+                }
+
+                // Not password protected
+                return state;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"Failed to load state from {filePath}:\n{ex.Message}",
+                    "Load Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning
+                );
+                return null;
+            }
         }
     }
 }

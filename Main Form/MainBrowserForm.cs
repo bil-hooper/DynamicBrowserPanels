@@ -115,11 +115,10 @@ namespace DynamicBrowserPanels
 
                 if (result == DialogResult.Yes)
                 {
-                    // Load the last template instead of current layout
-                    var state = BrowserStateManager.LoadState(AppConfiguration.LastLoadedTemplatePath);
+                    // Load the last template instead of current layout - use password-aware method
+                    var state = BrowserStateManager.LoadLayoutFrom(AppConfiguration.LastLoadedTemplatePath, out string _);
                     if (state != null)
                     {
-                        BrowserStateManager.LoadedSessionFilePath = AppConfiguration.LastLoadedTemplatePath;
                         _lastLoadedFileName = templateName;
                         this.Text = $"{templateName} - Dynamic Browser Panels";
                         _timerManager.UpdateOriginalTitle(this.Text);
@@ -154,13 +153,13 @@ namespace DynamicBrowserPanels
                         {
                             await CreateDefaultBrowser();
                         }
-                        
+
                         // Hide loading overlay
                         _loadingOverlay.Hide();
-                        
+
                         // Start non-critical background tasks after loading
                         StartBackgroundTasks();
-                        
+
                         return; // Exit early, don't load current layout
                     }
                 }
@@ -400,6 +399,8 @@ namespace DynamicBrowserPanels
             browser.ResetLayoutRequested += Browser_ResetLayoutRequested;
             browser.SaveLayoutDirectRequested += Browser_SaveLayoutDirectRequested;
             browser.SaveLayoutAsRequested += Browser_SaveLayoutAsRequested;
+            browser.SaveProtectedTemplateRequested += Browser_SaveProtectedTemplateRequested;
+            browser.RemoveTemplateProtectionRequested += Browser_RemoveTemplateProtectionRequested;
             browser.LoadLayoutRequested += Browser_LoadLayoutRequested;
             browser.TimerRequested += Browser_TimerRequested;
             browser.TimerStopRequested += Browser_TimerStopRequested;
@@ -430,6 +431,8 @@ namespace DynamicBrowserPanels
                 browser.ResetLayoutRequested += Browser_ResetLayoutRequested;
                 browser.SaveLayoutDirectRequested += Browser_SaveLayoutDirectRequested;
                 browser.SaveLayoutAsRequested += Browser_SaveLayoutAsRequested;
+                browser.SaveProtectedTemplateRequested += Browser_SaveProtectedTemplateRequested;
+                browser.RemoveTemplateProtectionRequested += Browser_RemoveTemplateProtectionRequested;
                 browser.LoadLayoutRequested += Browser_LoadLayoutRequested;
                 browser.TimerRequested += Browser_TimerRequested;
                 browser.TimerStopRequested += Browser_TimerStopRequested;
@@ -608,6 +611,8 @@ namespace DynamicBrowserPanels
             newBrowser.ResetLayoutRequested += Browser_ResetLayoutRequested;
             newBrowser.SaveLayoutDirectRequested += Browser_SaveLayoutDirectRequested;
             newBrowser.SaveLayoutAsRequested += Browser_SaveLayoutAsRequested;
+            newBrowser.SaveProtectedTemplateRequested += Browser_SaveProtectedTemplateRequested;
+            newBrowser.RemoveTemplateProtectionRequested += Browser_RemoveTemplateProtectionRequested;
             newBrowser.LoadLayoutRequested += Browser_LoadLayoutRequested;
             newBrowser.TimerRequested += Browser_TimerRequested;
             newBrowser.TimerStopRequested += Browser_TimerStopRequested;
@@ -1194,6 +1199,93 @@ namespace DynamicBrowserPanels
             {
                 ShowAllBrowserControls(child);
             }
+        }
+
+        /// <summary>
+        /// Handles save password-protected template request
+        /// </summary>
+        private void Browser_SaveProtectedTemplateRequested(object sender, EventArgs e)
+        {
+            SavePasswordProtectedTemplate();
+        }
+
+        /// <summary>
+        /// Handles remove template protection request
+        /// </summary>
+        private void Browser_RemoveTemplateProtectionRequested(object sender, EventArgs e)
+        {
+            RemoveTemplateProtection();
+        }
+
+        /// <summary>
+        /// Saves a password-protected template
+        /// </summary>
+        private void SavePasswordProtectedTemplate()
+        {
+            // Get the actual window bounds (not maximized bounds)
+            Rectangle bounds;
+            if (this.WindowState == FormWindowState.Normal)
+            {
+                bounds = new Rectangle(this.Location, this.Size);
+            }
+            else
+            {
+                // Use RestoreBounds when maximized or minimized
+                bounds = this.RestoreBounds != Rectangle.Empty
+                    ? this.RestoreBounds
+                    : new Rectangle(this.Location, this.Size);
+            }
+
+            var state = new BrowserState
+            {
+                FormWidth = bounds.Width,
+                FormHeight = bounds.Height,
+                FormX = bounds.X,
+                FormY = bounds.Y,
+                RootPanel = CapturePanelState(rootPanel)
+            };
+
+            if (BrowserStateManager.SavePasswordProtectedTemplate(state, _lastLoadedFileName))
+            {
+                // Update the window title with the new filename
+                _lastLoadedFileName = BrowserStateManager.SessionFileName;
+                this.Text = $"{_lastLoadedFileName} - Dynamic Browser Panels";
+                _timerManager.UpdateOriginalTitle(this.Text);
+                
+                // Save as last loaded template
+                AppConfiguration.LastLoadedTemplatePath = BrowserStateManager.LoadedSessionFilePath;
+            }
+        }
+
+        /// <summary>
+        /// Removes password protection from the current template
+        /// </summary>
+        private void RemoveTemplateProtection()
+        {
+            // Get the actual window bounds (not maximized bounds)
+            Rectangle bounds;
+            if (this.WindowState == FormWindowState.Normal)
+            {
+                bounds = new Rectangle(this.Location, this.Size);
+            }
+            else
+            {
+                // Use RestoreBounds when maximized or minimized
+                bounds = this.RestoreBounds != Rectangle.Empty
+                    ? this.RestoreBounds
+                    : new Rectangle(this.Location, this.Size);
+            }
+
+            var state = new BrowserState
+            {
+                FormWidth = bounds.Width,
+                FormHeight = bounds.Height,
+                FormX = bounds.X,
+                FormY = bounds.Y,
+                RootPanel = CapturePanelState(rootPanel)
+            };
+
+            BrowserStateManager.SaveWithoutPasswordProtection(state);
         }
     }
 }
