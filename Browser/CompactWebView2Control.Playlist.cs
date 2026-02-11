@@ -376,7 +376,7 @@ namespace DynamicBrowserPanels
                 currentTab.Playlist.RemoveFile(currentIndex);
                 
                 // Navigate to home page to stop playback
-                NavigateTabToUrl(currentTab, _homeUrl);
+                NavigateTabToUrl(currentTab, HomeUrl);
                 
                 MessageBox.Show(
                     $"Removed: {fileName}\n\nPlaylist is now empty.",

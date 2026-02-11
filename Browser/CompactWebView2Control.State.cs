@@ -23,7 +23,7 @@ namespace DynamicBrowserPanels
                 
                 if (string.IsNullOrWhiteSpace(url))
                 {
-                    url = _homeUrl;
+                    url = HomeUrl;
                 }
                 
                 if (LocalMediaHelper.IsTempMediaPlayerUrl(url))
@@ -71,7 +71,7 @@ namespace DynamicBrowserPanels
                 // No state to restore, create default tab if needed
                 if (_browserTabs.Count == 0)
                 {
-                    await AddNewTab(_homeUrl);
+                    await AddNewTab(HomeUrl);
                 }
                 return;
             }
@@ -153,7 +153,7 @@ namespace DynamicBrowserPanels
         {
             if (string.IsNullOrWhiteSpace(url))
             {
-                await tab.NavigateToUrl(_homeUrl);
+                await tab.NavigateToUrl(HomeUrl);
                 return;
             }
 
@@ -194,7 +194,7 @@ namespace DynamicBrowserPanels
                     catch
                     {
                         // If recreation fails, just navigate to home
-                        await tab.NavigateToUrl(_homeUrl);
+                        await tab.NavigateToUrl(HomeUrl);
                     }
                 }
                 else
@@ -206,7 +206,7 @@ namespace DynamicBrowserPanels
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Warning
                     );
-                    await tab.NavigateToUrl(_homeUrl);
+                    await tab.NavigateToUrl(HomeUrl);
                 }
             }
             else

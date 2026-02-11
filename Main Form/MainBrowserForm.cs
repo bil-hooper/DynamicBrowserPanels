@@ -14,6 +14,7 @@ namespace DynamicBrowserPanels
     {
         private Panel rootPanel;
         private string _lastLoadedFileName; // Store it here at the form level
+        private TimerManager _timerManager;
 
         public MainBrowserForm()
         {
@@ -31,10 +32,14 @@ namespace DynamicBrowserPanels
         /// </summary>
         private void InitializeRuntime()
         {
+            // Initialize timer manager
+            _timerManager = new TimerManager(this);
+            
             // Set window title based on mode
             if (BrowserStateManager.IsCommandLineMode)
             {
                 this.Text = $"{Path.GetFileName(BrowserStateManager.SessionFilePath)} (Read-Only) - Dynamic Browser Panels";
+                _timerManager.UpdateOriginalTitle(this.Text);
             }
             
             // Wire up event handlers
@@ -67,6 +72,7 @@ namespace DynamicBrowserPanels
             Name = "MainBrowserForm";
             StartPosition = FormStartPosition.CenterScreen;
             Text = "Dynamic Browser Panels";
+            KeyPreview = true; // Enable form-level key events for timer dismiss
             ResumeLayout(false);
         }
 
@@ -149,6 +155,8 @@ namespace DynamicBrowserPanels
             browser.ResetLayoutRequested += Browser_ResetLayoutRequested;
             browser.SaveLayoutRequested += Browser_SaveLayoutRequested;
             browser.LoadLayoutRequested += Browser_LoadLayoutRequested;
+            browser.TimerRequested += Browser_TimerRequested;
+            browser.TimerStopRequested += Browser_TimerStopRequested;
 
             rootPanel.Controls.Add(browser);
             
@@ -176,6 +184,8 @@ namespace DynamicBrowserPanels
                 browser.ResetLayoutRequested += Browser_ResetLayoutRequested;
                 browser.SaveLayoutRequested += Browser_SaveLayoutRequested;
                 browser.LoadLayoutRequested += Browser_LoadLayoutRequested;
+                browser.TimerRequested += Browser_TimerRequested;
+                browser.TimerStopRequested += Browser_TimerStopRequested;
 
                 parentPanel.Controls.Add(browser);
 
@@ -326,11 +336,15 @@ namespace DynamicBrowserPanels
             browser.ResetLayoutRequested -= Browser_ResetLayoutRequested;
             browser.SaveLayoutRequested -= Browser_SaveLayoutRequested;
             browser.LoadLayoutRequested -= Browser_LoadLayoutRequested;
+            browser.TimerRequested -= Browser_TimerRequested;
+            browser.TimerStopRequested -= Browser_TimerStopRequested;
             
             browser.SplitRequested += Browser_SplitRequested;
             browser.ResetLayoutRequested += Browser_ResetLayoutRequested;
             browser.SaveLayoutRequested += Browser_SaveLayoutRequested;
             browser.LoadLayoutRequested += Browser_LoadLayoutRequested;
+            browser.TimerRequested += Browser_TimerRequested;
+            browser.TimerStopRequested += Browser_TimerStopRequested;
             
             panel1.Controls.Add(browser);
 
@@ -345,6 +359,8 @@ namespace DynamicBrowserPanels
             newBrowser.ResetLayoutRequested += Browser_ResetLayoutRequested;
             newBrowser.SaveLayoutRequested += Browser_SaveLayoutRequested;
             newBrowser.LoadLayoutRequested += Browser_LoadLayoutRequested;
+            newBrowser.TimerRequested += Browser_TimerRequested;
+            newBrowser.TimerStopRequested += Browser_TimerStopRequested;
 
             panel2.Controls.Add(newBrowser);
             
@@ -353,6 +369,22 @@ namespace DynamicBrowserPanels
 
             // Add the split container to the parent panel
             parentPanel.Controls.Add(splitContainer);
+        }
+
+        /// <summary>
+        /// Handles timer request from browser control
+        /// </summary>
+        private void Browser_TimerRequested(object sender, TimeSpan duration)
+        {
+            _timerManager?.StartTimer(duration);
+        }
+
+        /// <summary>
+        /// Handles timer stop request from browser control
+        /// </summary>
+        private void Browser_TimerStopRequested(object sender, EventArgs e)
+        {
+            _timerManager?.StopTimer();
         }
 
         /// <summary>
@@ -394,6 +426,7 @@ namespace DynamicBrowserPanels
                     
                     // Update window title to show we're back in normal mode
                     this.Text = "Dynamic Browser Panels";
+                    _timerManager.UpdateOriginalTitle(this.Text);
                 }
                 
                 ResetLayout();
@@ -453,6 +486,7 @@ namespace DynamicBrowserPanels
                 _lastLoadedFileName = Path.GetFileName(loadedFilePath);
 
                 this.Text = $"{Path.GetFileName(_lastLoadedFileName)} (Read-Only) - Dynamic Browser Panels";
+                _timerManager.UpdateOriginalTitle(this.Text);
 
                 // Reset the current layout first
                 DisposeAllControls(rootPanel);
@@ -692,6 +726,7 @@ namespace DynamicBrowserPanels
             if (disposing)
             {
                 DisposeAllControls(rootPanel);
+                _timerManager?.Dispose();
             }
             base.Dispose(disposing);
         }
