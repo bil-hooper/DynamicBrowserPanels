@@ -14,8 +14,11 @@
 
   <ItemGroup>
     <Compile Remove="Sync\**" />
+    <Compile Remove="UI\**" />
     <EmbeddedResource Remove="Sync\**" />
+    <EmbeddedResource Remove="UI\**" />
     <None Remove="Sync\**" />
+    <None Remove="UI\**" />
   </ItemGroup>
 
   <ItemGroup>
@@ -29,10 +32,6 @@
     
     <!-- System.Text.Json for state serialization -->
     <PackageReference Include="System.Text.Json" Version="10.0.2" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Folder Include="UI\" />
   </ItemGroup>
 
 </Project>
