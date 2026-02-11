@@ -67,7 +67,7 @@ namespace DynamicBrowserPanels
                 new ToolStripSeparator(),
                 new ToolStripMenuItem("⏹ Stop Timer", null, (s, e) => StopTimer())
             });
-                        
+                
             // History menu
             mnuHistory = new ToolStripMenuItem("📜 History");
             mnuHistory.DropDownItems.AddRange(new ToolStripItem[]
@@ -84,6 +84,13 @@ namespace DynamicBrowserPanels
             
             mnuRenameTab = new ToolStripMenuItem("✎ Rename Tab...");
             mnuRenameTab.Click += (s, e) => RenameCurrentTab();
+            
+            // Add tab privacy lock menu items
+            mnuLockTab = new ToolStripMenuItem("🔒 Lock Tab");
+            mnuLockTab.Click += (s, e) => LockCurrentTab();
+            
+            mnuUnlockTab = new ToolStripMenuItem("🔓 Unlock Tab");
+            mnuUnlockTab.Click += (s, e) => UnlockCurrentTab();
             
             mnuMoveTabLeft = new ToolStripMenuItem("← Move Tab Left");
             mnuMoveTabLeft.Click += (s, e) => MoveTabLeft();
@@ -110,7 +117,7 @@ namespace DynamicBrowserPanels
             
             mnuLoadLayout = new ToolStripMenuItem("📂 Load Layout...");
             mnuLoadLayout.Click += (s, e) => LoadLayoutRequested?.Invoke(this, EventArgs.Empty);
-                        
+                
             mnuResetLayout = new ToolStripMenuItem("Reset Layout");
             mnuResetLayout.Click += (s, e) => ResetLayoutRequested?.Invoke(this, EventArgs.Empty);
 
@@ -144,6 +151,8 @@ namespace DynamicBrowserPanels
                 mnuNewTab, 
                 mnuCloseTab, 
                 mnuRenameTab,
+                mnuLockTab,
+                mnuUnlockTab,
                 mnuMoveTabLeft, 
                 mnuMoveTabRight,
                 mnuMoveTabToStart, 
@@ -203,7 +212,12 @@ namespace DynamicBrowserPanels
             // Enable rename if at least one tab exists
             mnuRenameTab.Enabled = _browserTabs.Count > 0;
             
+            // Update tab lock/unlock menu items based on locked state
             int selectedIndex = tabControl.SelectedIndex;
+            bool tabIsLocked = selectedIndex >= 0 && _lockedTabs.Contains(selectedIndex);
+            mnuLockTab.Visible = !tabIsLocked;
+            mnuUnlockTab.Visible = tabIsLocked;
+            
             int tabCount = _browserTabs.Count;
             
             // Enable move left if not at the leftmost position

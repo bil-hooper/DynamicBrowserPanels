@@ -206,6 +206,30 @@ namespace DynamicBrowserPanels
         }
 
         /// <summary>
+        /// Gets or sets the privacy lock settings
+        /// </summary>
+        public static PrivacyLockSettings PrivacyLockSettings
+        {
+            get
+            {
+                lock (_lock)
+                {
+                    EnsureSettingsLoaded();
+                    return _settings.PrivacyLockSettings;
+                }
+            }
+            set
+            {
+                lock (_lock)
+                {
+                    EnsureSettingsLoaded();
+                    _settings.PrivacyLockSettings = value;
+                    MarkDirtyAndScheduleSave();
+                }
+            }
+        }
+
+        /// <summary>
         /// Ensures settings are loaded from disk
         /// </summary>
         private static void EnsureSettingsLoaded()
@@ -275,6 +299,7 @@ namespace DynamicBrowserPanels
             public string LastMediaDirectory { get; set; } = string.Empty;
             public string LastLoadedTemplatePath { get; set; } = string.Empty;
             public bool PromptRestoreLastTemplate { get; set; } = true;
+            public PrivacyLockSettings PrivacyLockSettings { get; set; } = new PrivacyLockSettings();
         }
     }
 }

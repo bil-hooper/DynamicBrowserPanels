@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -192,20 +193,7 @@ namespace DynamicBrowserPanels
             int selectedIndex = tabControl.SelectedIndex;
             if (selectedIndex <= 0) return;
 
-            var tabPage = tabControl.TabPages[selectedIndex];
-            var browserTab = _browserTabs[selectedIndex];
-            var customName = _tabCustomNames[selectedIndex];
-
-            tabControl.TabPages.RemoveAt(selectedIndex);
-            _browserTabs.RemoveAt(selectedIndex);
-            _tabCustomNames.RemoveAt(selectedIndex);
-
-            int newIndex = selectedIndex - 1;
-            tabControl.TabPages.Insert(newIndex, tabPage);
-            _browserTabs.Insert(newIndex, browserTab);
-            _tabCustomNames.Insert(newIndex, customName);
-
-            tabControl.SelectedIndex = newIndex;
+            MoveTab(selectedIndex, selectedIndex - 1);
         }
 
         /// <summary>
@@ -216,20 +204,7 @@ namespace DynamicBrowserPanels
             int selectedIndex = tabControl.SelectedIndex;
             if (selectedIndex < 0 || selectedIndex >= tabControl.TabPages.Count - 1) return;
 
-            var tabPage = tabControl.TabPages[selectedIndex];
-            var browserTab = _browserTabs[selectedIndex];
-            var customName = _tabCustomNames[selectedIndex];
-
-            tabControl.TabPages.RemoveAt(selectedIndex);
-            _browserTabs.RemoveAt(selectedIndex);
-            _tabCustomNames.RemoveAt(selectedIndex);
-
-            int newIndex = selectedIndex + 1;
-            tabControl.TabPages.Insert(newIndex, tabPage);
-            _browserTabs.Insert(newIndex, browserTab);
-            _tabCustomNames.Insert(newIndex, customName);
-
-            tabControl.SelectedIndex = newIndex;
+            MoveTab(selectedIndex, selectedIndex + 1);
         }
 
         /// <summary>
@@ -240,19 +215,7 @@ namespace DynamicBrowserPanels
             int selectedIndex = tabControl.SelectedIndex;
             if (selectedIndex <= 0) return;
 
-            var tabPage = tabControl.TabPages[selectedIndex];
-            var browserTab = _browserTabs[selectedIndex];
-            var customName = _tabCustomNames[selectedIndex];
-
-            tabControl.TabPages.RemoveAt(selectedIndex);
-            _browserTabs.RemoveAt(selectedIndex);
-            _tabCustomNames.RemoveAt(selectedIndex);
-
-            tabControl.TabPages.Insert(0, tabPage);
-            _browserTabs.Insert(0, browserTab);
-            _tabCustomNames.Insert(0, customName);
-
-            tabControl.SelectedIndex = 0;
+            MoveTab(selectedIndex, 0);
         }
 
         /// <summary>
@@ -262,22 +225,82 @@ namespace DynamicBrowserPanels
         {
             int selectedIndex = tabControl.SelectedIndex;
             int lastIndex = tabControl.TabPages.Count - 1;
-            
+
             if (selectedIndex < 0 || selectedIndex >= lastIndex) return;
 
-            var tabPage = tabControl.TabPages[selectedIndex];
-            var browserTab = _browserTabs[selectedIndex];
-            var customName = _tabCustomNames[selectedIndex];
+            MoveTab(selectedIndex, lastIndex);
+        }
 
-            tabControl.TabPages.RemoveAt(selectedIndex);
-            _browserTabs.RemoveAt(selectedIndex);
-            _tabCustomNames.RemoveAt(selectedIndex);
+        /// <summary>
+        /// Core method to move a tab from one index to another
+        /// </summary>
+        private void MoveTab(int fromIndex, int toIndex)
+        {
+            if (fromIndex == toIndex) return;
 
-            tabControl.TabPages.Insert(lastIndex, tabPage);
-            _browserTabs.Insert(lastIndex, browserTab);
-            _tabCustomNames.Insert(lastIndex, customName);
+            // Map each TabPage to its lock state
+            var tabLockStates = new Dictionary<TabPage, bool>();
+            for (int i = 0; i < tabControl.TabPages.Count; i++)
+            {
+                tabLockStates[tabControl.TabPages[i]] = _lockedTabs.Contains(i);
+            }
 
-            tabControl.SelectedIndex = lastIndex;
+            // Move the tab and associated data
+            var tabPage = tabControl.TabPages[fromIndex];
+            var browserTab = _browserTabs[fromIndex];
+            var customName = _tabCustomNames[fromIndex];
+
+            tabControl.TabPages.RemoveAt(fromIndex);
+            _browserTabs.RemoveAt(fromIndex);
+            _tabCustomNames.RemoveAt(fromIndex);
+
+            tabControl.TabPages.Insert(toIndex, tabPage);
+            _browserTabs.Insert(toIndex, browserTab);
+            _tabCustomNames.Insert(toIndex, customName);
+
+            // Rebuild lock states based on TabPage objects
+            _lockedTabs.Clear();
+            for (int i = 0; i < tabControl.TabPages.Count; i++)
+            {
+                if (tabLockStates[tabControl.TabPages[i]])
+                {
+                    _lockedTabs.Add(i);
+                }
+            }
+
+            tabControl.SelectedIndex = toIndex;
+
+            // Rebuild overlays
+            RebuildLockOverlays();
+
+            // Redraw tabs
+            tabControl.Invalidate();
+        }
+
+        /// <summary>
+        /// Rebuilds the lock overlays dictionary to match current tab indices
+        /// </summary>
+        private void RebuildLockOverlays()
+        {
+            // Dispose old overlays but keep track of which tabs should have overlays
+            var oldOverlays = new Dictionary<int, Panel>(_lockOverlays);
+            _lockOverlays.Clear();
+
+            // Dispose all old overlays
+            foreach (var overlay in oldOverlays.Values)
+            {
+                if (overlay != null && overlay.Parent != null)
+                {
+                    overlay.Parent.Controls.Remove(overlay);
+                }
+                overlay?.Dispose();
+            }
+
+            // Recreate overlays for locked tabs at their new positions
+            foreach (int lockedIndex in _lockedTabs)
+            {
+                ObfuscateTab(lockedIndex);
+            }
         }
     }
 }

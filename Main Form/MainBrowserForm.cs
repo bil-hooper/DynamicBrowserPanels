@@ -16,6 +16,7 @@ namespace DynamicBrowserPanels
         private string _lastLoadedFileName; // Store it here at the form level
         private TimerManager _timerManager;
         private LoadingOverlay _loadingOverlay;
+        private PrivacyLockOverlay _privacyOverlay; // Add field
 
         public MainBrowserForm()
         {
@@ -53,6 +54,8 @@ namespace DynamicBrowserPanels
 
             // Cleanup temp files
             CleanupTempFiles();
+
+            InitializePrivacyLock(); // Add privacy lock initialization
         }
 
         /// <summary>
@@ -1070,6 +1073,127 @@ namespace DynamicBrowserPanels
                 _loadingOverlay?.Dispose();
             }
             base.Dispose(disposing);
+        }
+
+        // Add to InitializeComponent or constructor
+        private void InitializePrivacyLock()
+        {
+            PrivacyLockManager.Instance.LockRequested += OnPrivacyLockRequested;
+            PrivacyLockManager.Instance.UnlockSuccessful += OnPrivacyUnlocked;
+            
+            // Add toolbar button or menu item
+            var lockButton = new ToolStripButton("🔒 Lock")
+            {
+                ToolTipText = "Lock browser for privacy (Ctrl+L)"
+            };
+            lockButton.Click += OnLockClick;
+            // Add to your toolbar
+            
+            // Add keyboard shortcut
+            this.KeyPreview = true;
+            this.KeyDown += OnKeyDown;
+        }
+
+        private void OnKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Control && e.KeyCode == Keys.L)
+            {
+                e.Handled = true;
+                OnLockClick(sender, e);
+            }
+        }
+
+        private void OnLockClick(object sender, EventArgs e)
+        {
+            if (!PrivacyLockManager.Instance.IsEnabled)
+            {
+                var result = MessageBox.Show(
+                    "Privacy lock is not configured. Would you like to set it up now?",
+                    "Privacy Lock",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Question);
+                
+                if (result == DialogResult.Yes)
+                {
+                    using (var settings = new PrivacyLockSettingsForm())
+                    {
+                        settings.ShowDialog(this);
+                    }
+                }
+                return;
+            }
+            
+            PrivacyLockManager.Instance.Lock();
+        }
+
+        private void OnPrivacyLockRequested(object sender, EventArgs e)
+        {
+            // Hide all browser controls
+            HideAllBrowserControls(rootPanel);
+            
+            _privacyOverlay = new PrivacyLockOverlay();
+            _privacyOverlay.FormClosed += (s, args) => OnPrivacyUnlocked(s, args);
+            _privacyOverlay.ShowDialog(this);
+        }
+
+        private void OnPrivacyUnlocked(object sender, EventArgs e)
+        {
+            // Restore all browser controls
+            ShowAllBrowserControls(rootPanel);
+            
+            if (_privacyOverlay != null)
+            {
+                _privacyOverlay.Dispose();
+                _privacyOverlay = null;
+            }
+        }
+
+        /// <summary>
+        /// Recursively hides all CompactWebView2Control instances
+        /// </summary>
+        private void HideAllBrowserControls(Control control)
+        {
+            if (control is CompactWebView2Control browser)
+            {
+                browser.Visible = false;
+                return;
+            }
+
+            if (control is SplitContainer splitContainer)
+            {
+                HideAllBrowserControls(splitContainer.Panel1);
+                HideAllBrowserControls(splitContainer.Panel2);
+                return;
+            }
+
+            foreach (Control child in control.Controls)
+            {
+                HideAllBrowserControls(child);
+            }
+        }
+
+        /// <summary>
+        /// Recursively shows all CompactWebView2Control instances
+        /// </summary>
+        private void ShowAllBrowserControls(Control control)
+        {
+            if (control is CompactWebView2Control browser)
+            {
+                browser.Visible = true;
+                return;
+            }
+
+            if (control is SplitContainer splitContainer)
+            {
+                ShowAllBrowserControls(splitContainer.Panel1);
+                ShowAllBrowserControls(splitContainer.Panel2);
+                return;
+            }
+
+            foreach (Control child in control.Controls)
+            {
+                ShowAllBrowserControls(child);
+            }
         }
     }
 }
