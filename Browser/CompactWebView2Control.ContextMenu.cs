@@ -95,8 +95,11 @@ namespace DynamicBrowserPanels
             
             separator3 = new ToolStripSeparator();
             
-            mnuSaveLayout = new ToolStripMenuItem("💾 Save Layout As...");
-            mnuSaveLayout.Click += (s, e) => SaveLayoutRequested?.Invoke(this, EventArgs.Empty);
+            mnuSaveLayoutDirect = new ToolStripMenuItem("💾 Save Layout");
+            mnuSaveLayoutDirect.Click += (s, e) => SaveLayoutDirectRequested?.Invoke(this, EventArgs.Empty);
+            
+            mnuSaveLayoutAs = new ToolStripMenuItem("💾 Save Layout As...");
+            mnuSaveLayoutAs.Click += (s, e) => SaveLayoutAsRequested?.Invoke(this, EventArgs.Empty);
             
             mnuLoadLayout = new ToolStripMenuItem("📂 Load Layout...");
             mnuLoadLayout.Click += (s, e) => LoadLayoutRequested?.Invoke(this, EventArgs.Empty);
@@ -134,7 +137,7 @@ namespace DynamicBrowserPanels
                 separator2,
                 mnuSplitHorizontal, mnuSplitVertical,
                 separator3,
-                mnuSaveLayout, mnuLoadLayout,
+                mnuSaveLayoutDirect, mnuSaveLayoutAs, mnuLoadLayout,
                 separator4,
                 mnuResetLayout,
                 new ToolStripSeparator(),
@@ -193,6 +196,20 @@ namespace DynamicBrowserPanels
             
             // Enable move to end if not already at the end
             mnuMoveTabToEnd.Enabled = selectedIndex >= 0 && selectedIndex < tabCount - 1;
+
+            // Enable "Save Layout" only when in session mode (file is loaded)
+            bool isSessionMode = BrowserStateManager.IsSessionMode;
+            mnuSaveLayoutDirect.Enabled = isSessionMode;
+            
+            // Update text to show filename if in session mode
+            if (isSessionMode && !string.IsNullOrEmpty(BrowserStateManager.SessionFileName))
+            {
+                mnuSaveLayoutDirect.Text = $"💾 Save Layout ({BrowserStateManager.SessionFileName})";
+            }
+            else
+            {
+                mnuSaveLayoutDirect.Text = "💾 Save Layout";
+            }
 
             // Show Install or Uninstall based on installation status
             bool isInstalled = InstallationManager.IsInstalled();

@@ -134,9 +134,31 @@ namespace DynamicBrowserPanels
             color: #858585;
         }}
 
-        #notepad {{
+        .toolbar .mode-indicator {{
+            background: #3e3e42;
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            color: #858585;
+        }}
+
+        .toolbar .mode-indicator.edit-mode {{
+            background: #ce9178;
+            color: #1e1e1e;
+        }}
+
+        .content-container {{
             flex: 1;
+            position: relative;
+            overflow: hidden;
+        }}
+
+        #notepad {{
+            position: absolute;
+            top: 0;
+            left: 0;
             width: 100%;
+            height: 100%;
             padding: 16px;
             background: #1e1e1e;
             color: #d4d4d4;
@@ -169,6 +191,58 @@ namespace DynamicBrowserPanels
         #notepad::-webkit-scrollbar-thumb:hover {{
             background: #4e4e4e;
         }}
+
+        #renderedView {{
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            padding: 16px;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 14px;
+            line-height: 1.6;
+            overflow-y: auto;
+            cursor: text;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }}
+
+        #renderedView::-webkit-scrollbar {{
+            width: 12px;
+        }}
+
+        #renderedView::-webkit-scrollbar-track {{
+            background: #1e1e1e;
+        }}
+
+        #renderedView::-webkit-scrollbar-thumb {{
+            background: #424242;
+            border-radius: 6px;
+        }}
+
+        #renderedView::-webkit-scrollbar-thumb:hover {{
+            background: #4e4e4e;
+        }}
+
+        #renderedView a {{
+            color: #4a9eff;
+            text-decoration: none;
+        }}
+
+        #renderedView a:hover {{
+            text-decoration: underline;
+        }}
+
+        #renderedView a:visited {{
+            color: #c586c0;
+        }}
+
+        .hidden {{
+            display: none;
+        }}
     </style>
 </head>
 <body>
@@ -182,16 +256,21 @@ namespace DynamicBrowserPanels
         <div class=""separator""></div>
         <button id=""btnClear"" title=""Clear All"">🗑️ Clear</button>
         <span class=""instance-badge"">#{instanceNumber}</span>
+        <span class=""mode-indicator"" id=""modeIndicator"">View Mode</span>
         <span class=""save-status"" id=""saveStatus"">Auto-saved</span>
         <div class=""info"">
             <span id=""charCount"">0 characters</span> | 
             <span id=""lineCount"">1 line</span>
         </div>
     </div>
-    <textarea id=""notepad"" placeholder=""Start typing your notes here...&#10;&#10;• Plain text notes&#10;• URLs and links&#10;• Code snippets&#10;• To-do lists&#10;• Anything you want to remember&#10;&#10;Your notes are automatically saved every 5 minutes.""></textarea>
+    <div class=""content-container"">
+        <textarea id=""notepad"" class=""hidden"" placeholder=""Start typing your notes here...&#10;&#10;• Plain text notes&#10;• URLs and links&#10;• Code snippets&#10;• To-do lists&#10;• Anything you want to remember&#10;&#10;Your notes are automatically saved every 5 minutes.&#10;&#10;Double-click to edit, click Save to render HTML links.""></textarea>
+        <div id=""renderedView""></div>
+    </div>
 
     <script>
         const notepad = document.getElementById('notepad');
+        const renderedView = document.getElementById('renderedView');
         const btnUndo = document.getElementById('btnUndo');
         const btnRedo = document.getElementById('btnRedo');
         const btnSave = document.getElementById('btnSave');
@@ -199,6 +278,7 @@ namespace DynamicBrowserPanels
         const btnExport = document.getElementById('btnExport');
         const btnClear = document.getElementById('btnClear');
         const saveStatus = document.getElementById('saveStatus');
+        const modeIndicator = document.getElementById('modeIndicator');
         const charCount = document.getElementById('charCount');
         const lineCount = document.getElementById('lineCount');
 
@@ -206,14 +286,68 @@ namespace DynamicBrowserPanels
         
         let hasChanges = false;
         let autoSaveTimer = null;
+        let isEditMode = false;
         const AUTO_SAVE_INTERVAL = 5 * 60 * 1000; // 5 minutes
 
         // Set initial content (properly unescaped)
         notepad.value = ""{escapedContent}"";
         
-        // Initialize
+        // Initialize in view mode
+        updateRenderedView();
         updateStats();
         updateUndoRedoButtons();
+
+        // Convert URLs to clickable links
+        function linkify(text) {{
+            const urlPattern = /(\b(https?|ftp):\/\/[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])/gim;
+            const wwwPattern = /(^|[^\/])(www\.[\S]+(\b|$))/gim;
+            const emailPattern = /(([a-zA-Z0-9\-\_\.])+@[a-zA-Z\_]+?(\.[a-zA-Z]{{2,6}})+)/gim;
+
+            let result = text.replace(/&/g, '&amp;')
+                            .replace(/</g, '&lt;')
+                            .replace(/>/g, '&gt;');
+
+            result = result.replace(urlPattern, '<a href=""$1"" target=""_blank"">$1</a>');
+            result = result.replace(wwwPattern, '$1<a href=""http://$2"" target=""_blank"">$2</a>');
+            result = result.replace(emailPattern, '<a href=""mailto:$1"">$1</a>');
+
+            return result;
+        }}
+
+        // Update the rendered view with linkified content
+        function updateRenderedView() {{
+            const content = notepad.value;
+            if (content.trim() === '') {{
+                renderedView.innerHTML = '<span style=""color: #858585; font-style: italic;"">Double-click to start editing...</span>';
+            }} else {{
+                renderedView.innerHTML = linkify(content);
+            }}
+        }}
+
+        // Switch to edit mode
+        function enterEditMode() {{
+            isEditMode = true;
+            notepad.classList.remove('hidden');
+            renderedView.classList.add('hidden');
+            modeIndicator.textContent = 'Edit Mode';
+            modeIndicator.classList.add('edit-mode');
+            btnUndo.disabled = false;
+            btnRedo.disabled = false;
+            notepad.focus();
+            updateUndoRedoButtons();
+        }}
+
+        // Switch to view mode
+        function enterViewMode() {{
+            isEditMode = false;
+            notepad.classList.add('hidden');
+            renderedView.classList.remove('hidden');
+            modeIndicator.textContent = 'View Mode';
+            modeIndicator.classList.remove('edit-mode');
+            btnUndo.disabled = true;
+            btnRedo.disabled = true;
+            updateRenderedView();
+        }}
 
         // Listen for content updates from the host application
         window.chrome.webview.addEventListener('message', function(event) {{
@@ -239,6 +373,7 @@ namespace DynamicBrowserPanels
                     
                     // Update UI
                     updateStats();
+                    updateRenderedView();
                     hasChanges = false;
                     saveStatus.textContent = 'Content refreshed at ' + new Date().toLocaleTimeString();
                     saveStatus.classList.remove('modified');
@@ -258,8 +393,13 @@ namespace DynamicBrowserPanels
 
         // Update undo/redo button states
         function updateUndoRedoButtons() {{
-            btnUndo.disabled = !document.queryCommandEnabled('undo');
-            btnRedo.disabled = !document.queryCommandEnabled('redo');
+            if (isEditMode) {{
+                btnUndo.disabled = !document.queryCommandEnabled('undo');
+                btnRedo.disabled = !document.queryCommandEnabled('redo');
+            }} else {{
+                btnUndo.disabled = true;
+                btnRedo.disabled = true;
+            }}
         }}
 
         // Mark as modified
@@ -301,6 +441,9 @@ namespace DynamicBrowserPanels
             hasChanges = false;
             saveStatus.textContent = 'Saved at ' + new Date().toLocaleTimeString();
             saveStatus.classList.remove('modified');
+            
+            // Switch to view mode after saving
+            enterViewMode();
         }}
 
         // Refresh content from disk
@@ -340,6 +483,7 @@ namespace DynamicBrowserPanels
                 hasChanges = true;
                 saveNotepad();
                 updateStats();
+                updateRenderedView();
                 
                 // Immediately save the empty content
                 window.chrome.webview.postMessage({{
@@ -361,16 +505,25 @@ namespace DynamicBrowserPanels
             updateUndoRedoButtons();
         }});
 
+        // Double-click on rendered view to enter edit mode
+        renderedView.addEventListener('dblclick', () => {{
+            enterEditMode();
+        }});
+
         btnUndo.addEventListener('click', () => {{
-            document.execCommand('undo');
-            updateUndoRedoButtons();
-            updateStats();
+            if (isEditMode) {{
+                document.execCommand('undo');
+                updateUndoRedoButtons();
+                updateStats();
+            }}
         }});
 
         btnRedo.addEventListener('click', () => {{
-            document.execCommand('redo');
-            updateUndoRedoButtons();
-            updateStats();
+            if (isEditMode) {{
+                document.execCommand('redo');
+                updateUndoRedoButtons();
+                updateStats();
+            }}
         }});
 
         btnSave.addEventListener('click', () => {{
@@ -424,9 +577,6 @@ namespace DynamicBrowserPanels
                 }});
             }}
         }});
-
-        // Focus notepad on load
-        notepad.focus();
     </script>
 </body>
 </html>";

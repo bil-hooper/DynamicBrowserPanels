@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -245,6 +246,11 @@ namespace DynamicBrowserPanels
                         // Handle notepad export
                         HandleNotepadExport(json);
                     }
+                    else if (json.Contains("\"openExternalUrl\""))
+                    {
+                        // Handle opening URL in external browser
+                        HandleOpenExternalUrl(json);
+                    }
                     else if (json.Contains("\"previous\""))
                     {
                         // Handle previous track
@@ -279,6 +285,41 @@ namespace DynamicBrowserPanels
             catch
             {
                 // Ignore message parsing errors
+            }
+        }
+
+        /// <summary>
+        /// Handles opening a URL in an external browser
+        /// </summary>
+        private void HandleOpenExternalUrl(string json)
+        {
+            try
+            {
+                using (JsonDocument document = JsonDocument.Parse(json))
+                {
+                    if (document.RootElement.TryGetProperty("url", out JsonElement urlElement))
+                    {
+                        var url = urlElement.GetString();
+                        if (!string.IsNullOrWhiteSpace(url))
+                        {
+                            // Open URL in default browser
+                            Process.Start(new ProcessStartInfo
+                            {
+                                FileName = url,
+                                UseShellExecute = true
+                            });
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"Failed to open URL: {ex.Message}",
+                    "Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error
+                );
             }
         }
 
