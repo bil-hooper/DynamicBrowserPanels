@@ -202,7 +202,8 @@ namespace DynamicBrowserPanels
         }
 
         /// <summary>
-        /// Get current state for saving
+        /// Get current state for saving - automatically sets MachineName for media/playlist tabs
+        /// Automatically set MachineName if playlist contains files
         /// </summary>
         public PlaylistStateData GetState()
         {
@@ -212,7 +213,8 @@ namespace DynamicBrowserPanels
                 CurrentIndex = _currentIndex,
                 Shuffle = _shuffle,
                 Repeat = _repeat,
-                PlaylistName = _playlistName
+                PlaylistName = _playlistName,
+                MachineName = _mediaFiles.Count > 0 ? Environment.MachineName : null 
             };
         }
 

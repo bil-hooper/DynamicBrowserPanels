@@ -37,7 +37,7 @@ namespace DynamicBrowserPanels
                 
                 tabUrls.Add(url);
                 
-                // Save playlist state for each tab
+                // Save playlist state for each tab (MachineName auto-set if playlist has files)
                 if (tab.Playlist != null && tab.Playlist.Count > 0)
                 {
                     var playlistState = tab.Playlist.GetState();
@@ -62,13 +62,65 @@ namespace DynamicBrowserPanels
         }
 
         /// <summary>
-        /// Restores tabs from saved state
+        /// Restores tabs from saved state, filtering machine-specific playlist tabs
         /// </summary>
         public async Task RestoreTabsState(TabsStateData state)
         {
             if (state == null || state.TabUrls == null || state.TabUrls.Count == 0)
             {
                 // No state to restore, create default tab if needed
+                if (_browserTabs.Count == 0)
+                {
+                    await AddNewTab(HomeUrl);
+                }
+                return;
+            }
+
+            // Get current machine name
+            string currentMachine = Environment.MachineName;
+
+            // Filter tabs based on machine-specific playlists
+            var filteredUrls = new List<string>();
+            var filteredCustomNames = new List<string>();
+            var filteredPlaylists = new List<PlaylistStateData>();
+            int originalSelectedIndex = state.SelectedTabIndex;
+            int newSelectedIndex = -1;
+
+            for (int i = 0; i < state.TabUrls.Count; i++)
+            {
+                PlaylistStateData playlist = null;
+                if (state.TabPlaylists != null && i < state.TabPlaylists.Count)
+                {
+                    playlist = state.TabPlaylists[i];
+                }
+
+                // Check if this tab should be shown on this machine
+                bool showTab = true;
+                if (playlist != null && !string.IsNullOrEmpty(playlist.MachineName))
+                {
+                    // This is a machine-specific playlist - only show if it matches current machine
+                    showTab = playlist.MachineName.Equals(currentMachine, StringComparison.OrdinalIgnoreCase);
+                }
+
+                if (showTab)
+                {
+                    filteredUrls.Add(state.TabUrls[i]);
+                    filteredCustomNames.Add(state.TabCustomNames != null && i < state.TabCustomNames.Count 
+                        ? state.TabCustomNames[i] 
+                        : null);
+                    filteredPlaylists.Add(playlist);
+
+                    // Track the selected index
+                    if (i == originalSelectedIndex)
+                    {
+                        newSelectedIndex = filteredUrls.Count - 1;
+                    }
+                }
+            }
+
+            // If no tabs passed the filter, create a default tab
+            if (filteredUrls.Count == 0)
+            {
                 if (_browserTabs.Count == 0)
                 {
                     await AddNewTab(HomeUrl);
@@ -101,15 +153,10 @@ namespace DynamicBrowserPanels
                 }
             });
 
-            // Create tabs from state - manually without using AddNewTab() to avoid race conditions
-            for (int i = 0; i < state.TabUrls.Count; i++)
+            // Create tabs from filtered state
+            for (int i = 0; i < filteredUrls.Count; i++)
             {
-                string customName = null;
-                if (state.TabCustomNames != null && i < state.TabCustomNames.Count)
-                {
-                    customName = state.TabCustomNames[i];
-                }
-                
+                string customName = filteredCustomNames[i];
                 bool hasCustomName = !string.IsNullOrWhiteSpace(customName);
                 
                 var tabPage = new TabPage(hasCustomName ? customName : $"Tab {i + 1}");
@@ -131,18 +178,23 @@ namespace DynamicBrowserPanels
                 await browserTab.Initialize(null);
                 
                 // Restore playlist state for this tab BEFORE navigating
-                if (state.TabPlaylists != null && i < state.TabPlaylists.Count && state.TabPlaylists[i] != null)
+                if (filteredPlaylists[i] != null)
                 {
-                    browserTab.Playlist.RestoreState(state.TabPlaylists[i]);
+                    browserTab.Playlist.RestoreState(filteredPlaylists[i]);
                 }
                 
-                await NavigateTabToUrl(browserTab, state.TabUrls[i]);
+                await NavigateTabToUrl(browserTab, filteredUrls[i]);
             }
 
-            // Select the previously selected tab
-            if (state.SelectedTabIndex >= 0 && state.SelectedTabIndex < tabControl.TabPages.Count)
+            // Select the appropriate tab
+            if (newSelectedIndex >= 0 && newSelectedIndex < tabControl.TabPages.Count)
             {
-                tabControl.SelectedIndex = state.SelectedTabIndex;
+                tabControl.SelectedIndex = newSelectedIndex;
+            }
+            else if (tabControl.TabPages.Count > 0)
+            {
+                // If the originally selected tab was filtered out, select the first tab
+                tabControl.SelectedIndex = 0;
             }
         }
 

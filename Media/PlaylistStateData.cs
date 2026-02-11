@@ -9,5 +9,6 @@ namespace DynamicBrowserPanels
         public bool Shuffle { get; set; }
         public bool Repeat { get; set; }
         public string PlaylistName { get; set; }
+        public string MachineName { get; set; }
     }
 }
