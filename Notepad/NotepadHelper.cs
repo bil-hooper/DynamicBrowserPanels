@@ -1,75 +1,54 @@
 ﻿using System;
 using System.IO;
-using System.Text;
 
 namespace DynamicBrowserPanels
 {
     /// <summary>
-    /// Helper class to generate the notepad HTML page
+    /// Helper to create the notepad HTML file
     /// </summary>
     public static class NotepadHelper
     {
-        private static int _notepadCounter = 0;
-        private static readonly object _counterLock = new object();
+        private static readonly string NotepadHtmlPath = Path.Combine(
+            Path.GetTempPath(),
+            "DynamicBrowserPanels_Notepad.html"
+        );
 
         /// <summary>
-        /// Gets the next unique notepad instance number
+        /// Gets the notepad HTML file path
         /// </summary>
-        public static int GetNextNotepadInstance()
+        public static string GetNotepadHtmlPath()
         {
-            lock (_counterLock)
-            {
-                return ++_notepadCounter;
-            }
+            return NotepadHtmlPath;
         }
 
         /// <summary>
-        /// Gets the HTML file path for a specific notepad instance
+        /// Creates the notepad HTML file
         /// </summary>
-        public static string GetNotepadHtmlPath(int instanceNumber)
+        public static string CreateNotepadHtml()
         {
-            return Path.Combine(
-                Path.GetTempPath(),
-                $"DynamicBrowserPanels_Notepad_{instanceNumber}.html"
-            );
-        }
-
-        /// <summary>
-        /// Creates a temporary HTML file for the notepad with the given content
-        /// </summary>
-        /// <param name="content">Initial content for the notepad</param>
-        /// <param name="instanceNumber">Unique instance number for this notepad</param>
-        public static string CreateNotepadHtml(string content = "", int instanceNumber = 0)
-        {
-            var htmlPath = GetNotepadHtmlPath(instanceNumber);
-            
-            // Escape content for JavaScript string (will be set via script)
-            var escapedContent = EscapeForJavaScript(content);
-            
-            var html = $@"<!DOCTYPE html>
+            var html = @"<!DOCTYPE html>
 <html lang=""en"">
 <head>
     <meta charset=""UTF-8"">
     <meta name=""viewport"" content=""width=device-width, initial-scale=1.0"">
-    <title>Notepad {instanceNumber}</title>
-    <meta name=""notepad-instance"" content=""{instanceNumber}"">
+    <title>Notepad</title>
     <style>
-        * {{
+        * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-        }}
+        }
 
-        body {{
+        body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: #1e1e1e;
             color: #d4d4d4;
             height: 100vh;
             display: flex;
             flex-direction: column;
-        }}
+        }
 
-        .toolbar {{
+        .toolbar {
             background: #2d2d30;
             padding: 8px 12px;
             display: flex;
@@ -77,9 +56,9 @@ namespace DynamicBrowserPanels
             align-items: center;
             border-bottom: 1px solid #3e3e42;
             flex-shrink: 0;
-        }}
+        }
 
-        .toolbar button {{
+        .toolbar button {
             background: #0e639c;
             color: white;
             border: none;
@@ -87,78 +66,77 @@ namespace DynamicBrowserPanels
             border-radius: 3px;
             cursor: pointer;
             font-size: 13px;
-            transition: background 0.2s;
-        }}
+        }
 
-        .toolbar button:hover {{
+        .toolbar button:hover {
             background: #1177bb;
-        }}
+        }
 
-        .toolbar button:active {{
-            background: #0d5a8f;
-        }}
-
-        .toolbar button:disabled {{
-            background: #555;
-            cursor: not-allowed;
-            opacity: 0.5;
-        }}
-
-        .toolbar .separator {{
+        .toolbar .separator {
             width: 1px;
             height: 20px;
             background: #3e3e42;
             margin: 0 4px;
-        }}
+        }
 
-        .toolbar .info {{
+        .toolbar .note-selector {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: #3e3e42;
+            padding: 4px 8px;
+            border-radius: 3px;
+        }
+
+        .toolbar .note-selector label {
+            font-size: 11px;
+            color: #858585;
+        }
+
+        .toolbar .note-selector input {
+            background: #2d2d30;
+            color: #d4d4d4;
+            border: 1px solid #555;
+            padding: 4px 8px;
+            font-size: 12px;
+            width: 80px;
+            text-align: center;
+            border-radius: 3px;
+        }
+
+        .toolbar .status {
             margin-left: auto;
             font-size: 12px;
-            color: #858585;
-        }}
-
-        .toolbar .save-status {{
             color: #4ec9b0;
-            font-size: 12px;
-        }}
+        }
 
-        .toolbar .save-status.modified {{
+        .toolbar .status.modified {
             color: #ce9178;
-        }}
+        }
 
-        .toolbar .instance-badge {{
+        .toolbar .mode-indicator {
             background: #3e3e42;
             padding: 4px 8px;
             border-radius: 3px;
             font-size: 11px;
             color: #858585;
-        }}
+        }
 
-        .toolbar .mode-indicator {{
-            background: #3e3e42;
-            padding: 4px 8px;
-            border-radius: 3px;
-            font-size: 11px;
-            color: #858585;
-        }}
-
-        .toolbar .mode-indicator.edit-mode {{
+        .toolbar .mode-indicator.edit-mode {
             background: #ce9178;
             color: #1e1e1e;
-        }}
+        }
 
-        .content-container {{
+        .content-area {
             flex: 1;
-            position: relative;
+            display: flex;
+            flex-direction: column;
             overflow: hidden;
-        }}
+            position: relative;
+        }
 
-        #notepad {{
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+        #notepad {
+            flex: 1;
             padding: 16px;
             background: #1e1e1e;
             color: #d4d4d4;
@@ -168,36 +146,15 @@ namespace DynamicBrowserPanels
             font-size: 14px;
             line-height: 1.6;
             resize: none;
-            overflow-y: auto;
-        }}
+            display: none;
+        }
 
-        #notepad::selection {{
+        #notepad::selection {
             background: #264f78;
-        }}
+        }
 
-        #notepad::-webkit-scrollbar {{
-            width: 12px;
-        }}
-
-        #notepad::-webkit-scrollbar-track {{
-            background: #1e1e1e;
-        }}
-
-        #notepad::-webkit-scrollbar-thumb {{
-            background: #424242;
-            border-radius: 6px;
-        }}
-
-        #notepad::-webkit-scrollbar-thumb:hover {{
-            background: #4e4e4e;
-        }}
-
-        #renderedView {{
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+        #renderedView {
+            flex: 1;
             padding: 16px;
             background: #1e1e1e;
             color: #d4d4d4;
@@ -205,103 +162,105 @@ namespace DynamicBrowserPanels
             font-size: 14px;
             line-height: 1.6;
             overflow-y: auto;
-            cursor: text;
             white-space: pre-wrap;
             word-wrap: break-word;
-        }}
+            cursor: text;
+        }
 
-        #renderedView::-webkit-scrollbar {{
-            width: 12px;
-        }}
-
-        #renderedView::-webkit-scrollbar-track {{
-            background: #1e1e1e;
-        }}
-
-        #renderedView::-webkit-scrollbar-thumb {{
-            background: #424242;
-            border-radius: 6px;
-        }}
-
-        #renderedView::-webkit-scrollbar-thumb:hover {{
-            background: #4e4e4e;
-        }}
-
-        #renderedView a {{
+        #renderedView a {
             color: #4a9eff;
             text-decoration: none;
-        }}
+        }
 
-        #renderedView a:hover {{
+        #renderedView a:hover {
             text-decoration: underline;
-        }}
+        }
 
-        #renderedView a:visited {{
+        #renderedView a:visited {
             color: #c586c0;
-        }}
+        }
 
-        .hidden {{
-            display: none;
-        }}
+        #renderedView.empty {
+            color: #858585;
+            font-style: italic;
+        }
     </style>
 </head>
 <body>
     <div class=""toolbar"">
-        <button id=""btnUndo"" title=""Undo (Ctrl+Z)"">⟲ Undo</button>
-        <button id=""btnRedo"" title=""Redo (Ctrl+Y)"">⟳ Redo</button>
+        <button id=""btnSave"" title=""Save and View (Ctrl+S)"">Save</button>
+        <button id=""btnEdit"" title=""Edit Mode"">Edit</button>
+        <button id=""btnExport"" title=""Export to File"">Export</button>
+        <button id=""btnClear"" title=""Clear Note"">Clear</button>
         <div class=""separator""></div>
-        <button id=""btnSave"" title=""Save Now (Ctrl+S)"">💾 Save</button>
-        <button id=""btnRefresh"" title=""Reload from Disk (Ctrl+R)"">🔄 Refresh</button>
-        <button id=""btnExport"" title=""Export to File"">📄 Export</button>
-        <div class=""separator""></div>
-        <button id=""btnClear"" title=""Clear All"">🗑️ Clear</button>
-        <span class=""instance-badge"">#{instanceNumber}</span>
-        <span class=""mode-indicator"" id=""modeIndicator"">View Mode</span>
-        <span class=""save-status"" id=""saveStatus"">Auto-saved</span>
-        <div class=""info"">
-            <span id=""charCount"">0 characters</span> | 
-            <span id=""lineCount"">1 line</span>
+        <div class=""note-selector"">
+            <label for=""noteNumber"">Note #:</label>
+            <input type=""number"" id=""noteNumber"" min=""1"" max=""2147483647"" value=""1"">
         </div>
+        <span class=""mode-indicator"" id=""modeIndicator"">View Mode</span>
+        <span class=""status"" id=""status"">Ready</span>
     </div>
-    <div class=""content-container"">
-        <textarea id=""notepad"" class=""hidden"" placeholder=""Start typing your notes here...&#10;&#10;• Plain text notes&#10;• URLs and links&#10;• Code snippets&#10;• To-do lists&#10;• Anything you want to remember&#10;&#10;Your notes are automatically saved every 5 minutes.&#10;&#10;Double-click to edit, click Save to render HTML links.""></textarea>
-        <div id=""renderedView""></div>
+    <div class=""content-area"">
+        <textarea id=""notepad"" placeholder=""Start typing your notes here...
+
+• Plain text notes
+• URLs and links (rendered as clickable links in view mode)
+• Code snippets
+• To-do lists
+• Quick thoughts
+
+Notes are saved per number - switch numbers to access different notes.
+Auto-saves every 5 minutes.
+
+Click 'Save' to switch to view mode with clickable links.
+Double-click the view to edit again.""></textarea>
+        <div id=""renderedView"" class=""empty"">Double-click to start editing...</div>
     </div>
 
     <script>
         const notepad = document.getElementById('notepad');
         const renderedView = document.getElementById('renderedView');
-        const btnUndo = document.getElementById('btnUndo');
-        const btnRedo = document.getElementById('btnRedo');
+        const noteNumber = document.getElementById('noteNumber');
         const btnSave = document.getElementById('btnSave');
-        const btnRefresh = document.getElementById('btnRefresh');
+        const btnEdit = document.getElementById('btnEdit');
         const btnExport = document.getElementById('btnExport');
         const btnClear = document.getElementById('btnClear');
-        const saveStatus = document.getElementById('saveStatus');
+        const btnUndo = document.getElementById('btnUndo');
+        const btnRedo = document.getElementById('btnRedo');
+        const status = document.getElementById('status');
         const modeIndicator = document.getElementById('modeIndicator');
-        const charCount = document.getElementById('charCount');
-        const lineCount = document.getElementById('lineCount');
 
-        const INSTANCE_NUMBER = {instanceNumber};
-        
+        let currentNoteNumber = 1;
         let hasChanges = false;
         let autoSaveTimer = null;
         let isEditMode = false;
         const AUTO_SAVE_INTERVAL = 5 * 60 * 1000; // 5 minutes
 
-        // Set initial content (properly unescaped)
-        notepad.value = ""{escapedContent}"";
-        
-        // Initialize in view mode
-        updateRenderedView();
-        updateStats();
-        updateUndoRedoButtons();
+        // Undo/Redo state
+        let undoStack = [];
+        let redoStack = [];
+        let lastValue = '';
+        const MAX_UNDO_STACK = 50;
+
+        // Get note number from URL
+        function getNoteNumberFromUrl() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const note = parseInt(urlParams.get('note'));
+            return (note >= 1 && note <= 2147483647) ? note : 1;
+        }
+
+        // Update URL
+        function updateUrl(noteNum) {
+            const newUrl = window.location.pathname + '?note=' + noteNum;
+            window.history.pushState({ note: noteNum }, '', newUrl);
+            document.title = 'Note #' + noteNum;
+        }
 
         // Convert URLs to clickable links
-        function linkify(text) {{
+        function linkify(text) {
             const urlPattern = /(\b(https?|ftp):\/\/[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])/gim;
             const wwwPattern = /(^|[^\/])(www\.[\S]+(\b|$))/gim;
-            const emailPattern = /(([a-zA-Z0-9\-\_\.])+@[a-zA-Z\_]+?(\.[a-zA-Z]{{2,6}})+)/gim;
+            const emailPattern = /(([a-zA-Z0-9\-\_\.])+@[a-zA-Z\_]+?(\.[a-zA-Z]{2,6})+)/gim;
 
             let result = text.replace(/&/g, '&amp;')
                             .replace(/</g, '&lt;')
@@ -312,283 +271,245 @@ namespace DynamicBrowserPanels
             result = result.replace(emailPattern, '<a href=""mailto:$1"">$1</a>');
 
             return result;
-        }}
+        }
 
-        // Update the rendered view with linkified content
-        function updateRenderedView() {{
+        // Update rendered view
+        function updateRenderedView() {
             const content = notepad.value;
-            if (content.trim() === '') {{
-                renderedView.innerHTML = '<span style=""color: #858585; font-style: italic;"">Double-click to start editing...</span>';
-            }} else {{
+            if (content.trim() === '') {
+                renderedView.innerHTML = 'Note #' + currentNoteNumber + ' is empty. Double-click to start editing...';
+                renderedView.classList.add('empty');
+            } else {
                 renderedView.innerHTML = linkify(content);
-            }}
-        }}
-
-        // Switch to edit mode
-        function enterEditMode() {{
-            isEditMode = true;
-            notepad.classList.remove('hidden');
-            renderedView.classList.add('hidden');
-            modeIndicator.textContent = 'Edit Mode';
-            modeIndicator.classList.add('edit-mode');
-            btnUndo.disabled = false;
-            btnRedo.disabled = false;
-            notepad.focus();
-            updateUndoRedoButtons();
-        }}
-
-        // Switch to view mode
-        function enterViewMode() {{
-            isEditMode = false;
-            notepad.classList.add('hidden');
-            renderedView.classList.remove('hidden');
-            modeIndicator.textContent = 'View Mode';
-            modeIndicator.classList.remove('edit-mode');
-            btnUndo.disabled = true;
-            btnRedo.disabled = true;
-            updateRenderedView();
-        }}
-
-        // Listen for content updates from the host application
-        window.chrome.webview.addEventListener('message', function(event) {{
-            if (event.data && event.data.action === 'updateContent') {{
-                const newContent = event.data.content || '';
-                
-                // Only update if content actually changed
-                if (notepad.value !== newContent) {{
-                    // Save cursor position
-                    const selectionStart = notepad.selectionStart;
-                    const selectionEnd = notepad.selectionEnd;
-                    
-                    // Update content
-                    notepad.value = newContent;
-                    
-                    // Restore cursor position (if still valid)
-                    if (selectionStart <= notepad.value.length) {{
-                        notepad.setSelectionRange(
-                            Math.min(selectionStart, notepad.value.length),
-                            Math.min(selectionEnd, notepad.value.length)
-                        );
-                    }}
-                    
-                    // Update UI
-                    updateStats();
-                    updateRenderedView();
-                    hasChanges = false;
-                    saveStatus.textContent = 'Content refreshed at ' + new Date().toLocaleTimeString();
-                    saveStatus.classList.remove('modified');
-                }}
-            }}
-        }});
-
-        // Update character and line count
-        function updateStats() {{
-            const text = notepad.value;
-            const chars = text.length;
-            const lines = text.split('\n').length;
-            
-            charCount.textContent = `${{chars}} character${{chars !== 1 ? 's' : ''}}`;
-            lineCount.textContent = `${{lines}} line${{lines !== 1 ? 's' : ''}}`;
-        }}
+                renderedView.classList.remove('empty');
+            }
+        }
 
         // Update undo/redo button states
-        function updateUndoRedoButtons() {{
-            if (isEditMode) {{
-                btnUndo.disabled = !document.queryCommandEnabled('undo');
-                btnRedo.disabled = !document.queryCommandEnabled('redo');
-            }} else {{
-                btnUndo.disabled = true;
-                btnRedo.disabled = true;
-            }}
-        }}
+        function updateUndoRedoButtons() {
+            btnUndo.disabled = undoStack.length === 0;
+            btnRedo.disabled = redoStack.length === 0;
+        }
 
-        // Mark as modified
-        function markModified() {{
-            if (!hasChanges) {{
-                hasChanges = true;
-                saveStatus.textContent = 'Unsaved changes';
-                saveStatus.classList.add('modified');
-                
-                // Schedule autosave
-                scheduleAutoSave();
-            }}
-        }}
+        // Save state to undo stack
+        function saveUndoState(value) {
+            if (value !== lastValue) {
+                undoStack.push(lastValue);
+                if (undoStack.length > MAX_UNDO_STACK) {
+                    undoStack.shift();
+                }
+                redoStack = []; // Clear redo stack on new change
+                lastValue = value;
+                updateUndoRedoButtons();
+            }
+        }
 
-        // Schedule autosave
-        function scheduleAutoSave() {{
-            if (autoSaveTimer) {{
-                clearTimeout(autoSaveTimer);
-            }}
+        // Undo
+        function undo() {
+            if (undoStack.length > 0) {
+                redoStack.push(notepad.value);
+                notepad.value = undoStack.pop();
+                lastValue = notepad.value;
+                updateUndoRedoButtons();
+                markModified();
+            }
+        }
+
+        // Redo
+        function redo() {
+            if (redoStack.length > 0) {
+                undoStack.push(notepad.value);
+                notepad.value = redoStack.pop();
+                lastValue = notepad.value;
+                updateUndoRedoButtons();
+                markModified();
+            }
+        }
+
+        // Switch to edit mode
+        function enterEditMode() {
+            isEditMode = true;
+            notepad.style.display = 'block';
+            renderedView.style.display = 'none';
+            modeIndicator.textContent = 'Edit Mode';
+            modeIndicator.classList.add('edit-mode');
+            notepad.focus();
+        }
+
+        // Switch to view mode
+        function enterViewMode() {
+            isEditMode = false;
+            notepad.style.display = 'none';
+            renderedView.style.display = 'block';
+            modeIndicator.textContent = 'View Mode';
+            modeIndicator.classList.remove('edit-mode');
+            updateRenderedView();
+        }
+
+        // Load note (called by C# via executeScript)
+        function loadNote(content) {
+            notepad.value = content || '';
+            lastValue = notepad.value;
+            undoStack = [];
+            redoStack = [];
+            updateUndoRedoButtons();
+            hasChanges = false;
+            status.textContent = content ? 'Loaded Note #' + currentNoteNumber : 'Note #' + currentNoteNumber + ' is empty';
+            status.classList.remove('modified');
+            updateRenderedView();
+        }
+
+        // Request load from C#
+        function requestLoad(noteNum) {
+            currentNoteNumber = noteNum;
+            noteNumber.value = noteNum;
+            updateUrl(noteNum);
+            status.textContent = 'Loading...';
             
-            autoSaveTimer = setTimeout(() => {{
-                if (hasChanges) {{
-                    saveNotepad();
-                }}
-            }}, AUTO_SAVE_INTERVAL);
-        }}
+            window.chrome.webview.postMessage({
+                action: 'loadNote',
+                noteNumber: noteNum
+            });
+        }
 
-        // Save notepad content
-        function saveNotepad() {{
-            const content = notepad.value;
-            
-            // Send message to host application with instance number
-            window.chrome.webview.postMessage({{
-                action: 'saveNotepad',
-                instanceNumber: INSTANCE_NUMBER,
-                content: content
-            }});
+        // Save note
+        function saveNote() {
+            window.chrome.webview.postMessage({
+                action: 'saveNote',
+                noteNumber: currentNoteNumber,
+                content: notepad.value
+            });
             
             hasChanges = false;
-            saveStatus.textContent = 'Saved at ' + new Date().toLocaleTimeString();
-            saveStatus.classList.remove('modified');
+            status.textContent = 'Saved at ' + new Date().toLocaleTimeString();
+            status.classList.remove('modified');
             
-            // Switch to view mode after saving
+            // Switch to view mode after save
             enterViewMode();
-        }}
+        }
 
-        // Refresh content from disk
-        function refreshNotepad() {{
-            if (hasChanges) {{
-                if (!confirm('You have unsaved changes. Reload from disk and lose changes?')) {{
-                    return;
-                }}
-            }}
-            
-            // Request fresh content from host
-            window.chrome.webview.postMessage({{
-                action: 'refreshNotepad',
-                instanceNumber: INSTANCE_NUMBER
-            }});
-        }}
+        // Export note
+        function exportNote() {
+            window.chrome.webview.postMessage({
+                action: 'exportNote',
+                noteNumber: currentNoteNumber,
+                content: notepad.value
+            });
+        }
 
-        // Export to file
-        function exportNotepad() {{
-            const content = notepad.value;
-            
-            window.chrome.webview.postMessage({{
-                action: 'exportNotepad',
-                instanceNumber: INSTANCE_NUMBER,
-                content: content
-            }});
-        }}
-
-        // Clear notepad
-        function clearNotepad() {{
-            if (notepad.value.trim() === '') {{
-                return;
-            }}
-            
-            if (confirm('Are you sure you want to clear all notes?\\n\\nThis cannot be undone.')) {{
+        // Clear note
+        function clearNote() {
+            if (confirm('Clear Note #' + currentNoteNumber + '?\\n\\nThis cannot be undone.')) {
                 notepad.value = '';
                 hasChanges = true;
-                saveNotepad();
-                updateStats();
-                updateRenderedView();
-                
-                // Immediately save the empty content
-                window.chrome.webview.postMessage({{
-                    action: 'saveNotepad',
-                    instanceNumber: INSTANCE_NUMBER,
-                    content: ''
-                }});
-                
-                hasChanges = false;
-                saveStatus.textContent = 'Cleared and saved at ' + new Date().toLocaleTimeString();
-                saveStatus.classList.remove('modified');
-            }}
-        }}
+                saveNote();
+            }
+        }
 
-        // Event listeners
-        notepad.addEventListener('input', () => {{
+        // Mark modified
+        function markModified() {
+            if (!hasChanges) {
+                hasChanges = true;
+                status.textContent = 'Unsaved changes';
+                status.classList.add('modified');
+                
+                // Schedule autosave
+                if (autoSaveTimer) clearTimeout(autoSaveTimer);
+                autoSaveTimer = setTimeout(() => {
+                    if (hasChanges) saveNote();
+                }, AUTO_SAVE_INTERVAL);
+            }
+        }
+
+        // Track changes for undo/redo
+        let inputTimeout;
+        notepad.addEventListener('input', () => {
             markModified();
-            updateStats();
-            updateUndoRedoButtons();
-        }});
+            
+            // Debounce undo state saving (save after 500ms of no typing)
+            clearTimeout(inputTimeout);
+            inputTimeout = setTimeout(() => {
+                saveUndoState(notepad.value);
+            }, 500);
+        });
 
-        // Double-click on rendered view to enter edit mode
-        renderedView.addEventListener('dblclick', () => {{
+        // Switch notes
+        noteNumber.addEventListener('change', () => {
+            const newNum = parseInt(noteNumber.value);
+            if (isNaN(newNum) || newNum < 1) {
+                noteNumber.value = currentNoteNumber;
+                return;
+            }
+            
+            if (newNum === currentNoteNumber) return;
+            
+            if (hasChanges && !confirm('Unsaved changes. Switch anyway?')) {
+                noteNumber.value = currentNoteNumber;
+                return;
+            }
+            
+            enterViewMode();
+            requestLoad(newNum);
+        });
+
+        // Double-click rendered view to edit
+        renderedView.addEventListener('dblclick', () => {
             enterEditMode();
-        }});
+        });
 
-        btnUndo.addEventListener('click', () => {{
-            if (isEditMode) {{
-                document.execCommand('undo');
-                updateUndoRedoButtons();
-                updateStats();
-            }}
-        }});
-
-        btnRedo.addEventListener('click', () => {{
-            if (isEditMode) {{
-                document.execCommand('redo');
-                updateUndoRedoButtons();
-                updateStats();
-            }}
-        }});
-
-        btnSave.addEventListener('click', () => {{
-            saveNotepad();
-        }});
-
-        btnRefresh.addEventListener('click', () => {{
-            refreshNotepad();
-        }});
-
-        btnExport.addEventListener('click', () => {{
-            exportNotepad();
-        }});
-
-        btnClear.addEventListener('click', () => {{
-            clearNotepad();
-        }});
+        // Buttons
+        btnSave.addEventListener('click', saveNote);
+        btnEdit.addEventListener('click', enterEditMode);
+        btnExport.addEventListener('click', exportNote);
+        btnClear.addEventListener('click', clearNote);
+        btnUndo.addEventListener('click', undo);
+        btnRedo.addEventListener('click', redo);
 
         // Keyboard shortcuts
-        notepad.addEventListener('keydown', (e) => {{
-            if (e.ctrlKey && e.key === 's') {{
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.key === 's') {
                 e.preventDefault();
-                saveNotepad();
-            }}
-            else if (e.ctrlKey && e.key === 'r') {{
+                saveNote();
+            } else if (e.ctrlKey && e.key === 'z' && !e.shiftKey) {
                 e.preventDefault();
-                refreshNotepad();
-            }}
-            else if (e.ctrlKey && e.key === 'z') {{
-                setTimeout(updateUndoRedoButtons, 0);
-            }}
-            else if (e.ctrlKey && e.key === 'y') {{
-                setTimeout(updateUndoRedoButtons, 0);
-            }}
-        }});
+                undo();
+            } else if (e.ctrlKey && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+                e.preventDefault();
+                redo();
+            }
+        });
 
-        // Save before unload if there are unsaved changes
-        window.addEventListener('beforeunload', (e) => {{
-            if (hasChanges) {{
-                saveNotepad();
-            }}
-        }});
+        // Browser back/forward
+        window.addEventListener('popstate', (event) => {
+            if (event.state && event.state.note) {
+                const noteNum = event.state.note;
+                if (noteNum !== currentNoteNumber) {
+                    if (hasChanges && !confirm('Unsaved changes. Navigate anyway?')) {
+                        updateUrl(currentNoteNumber);
+                        return;
+                    }
+                    enterViewMode();
+                    requestLoad(noteNum);
+                }
+            }
+        });
 
-        // Auto-refresh when page becomes visible (tab switch)
-        document.addEventListener('visibilitychange', () => {{
-            if (!document.hidden) {{
-                // Request fresh content when tab becomes visible
-                window.chrome.webview.postMessage({{
-                    action: 'requestCurrentContent',
-                    instanceNumber: INSTANCE_NUMBER
-                }});
-            }}
-        }});
+        // Initialize
+        currentNoteNumber = getNoteNumberFromUrl();
+        requestLoad(currentNoteNumber);
+        enterViewMode();
+        updateUndoRedoButtons();
     </script>
 </body>
 </html>";
 
-            // Always overwrite the same file for this instance
-            File.WriteAllText(htmlPath, html);
-            
-            return htmlPath;
+            // Use UTF8 encoding when writing the file
+            File.WriteAllText(NotepadHtmlPath, html, System.Text.Encoding.UTF8);
+            return NotepadHtmlPath;
         }
 
         /// <summary>
-        /// Escapes content for safe inclusion in JavaScript string literal
+        /// Escapes content for JavaScript
         /// </summary>
         public static string EscapeForJavaScript(string content)
         {
@@ -596,13 +517,12 @@ namespace DynamicBrowserPanels
                 return string.Empty;
 
             return content
-                .Replace("\\", "\\\\")   // Backslash must be first
-                .Replace("\"", "\\\"")   // Escape double quotes
-                .Replace("\r\n", "\\n")  // Windows newlines
-                .Replace("\n", "\\n")    // Unix newlines
-                .Replace("\r", "\\n")    // Mac newlines
-                .Replace("\t", "\\t")    // Tabs
-                .Replace("</", "<\\/");  // Prevent script injection
+                .Replace("\\", "\\\\")
+                .Replace("\"", "\\\"")
+                .Replace("\r\n", "\\n")
+                .Replace("\n", "\\n")
+                .Replace("\r", "\\n")
+                .Replace("\t", "\\t");
         }
     }
 }

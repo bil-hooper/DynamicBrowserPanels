@@ -40,10 +40,10 @@ namespace DynamicBrowserPanels
                 new ToolStripMenuItem("💾 Save Playlist...", null, (s, e) => SavePlaylist())
             });
 
-            separator1b = new ToolStripSeparator();
-            
             mnuOpenNotepad = new ToolStripMenuItem("📝 Open Notepad");
             mnuOpenNotepad.Click += (s, e) => OpenNotepad();
+
+            separator1b = new ToolStripSeparator();
             
             // Timer menu
             mnuTimer = new ToolStripMenuItem("⏱ Timer");
@@ -126,8 +126,8 @@ namespace DynamicBrowserPanels
                 separator1,
                 mnuOpenMedia,
                 mnuPlaylistControls,
-                separator1b,
                 mnuOpenNotepad,
+                separator1b,
                 mnuTimer,
                 new ToolStripSeparator(),
                 mnuNewTab, mnuCloseTab, mnuRenameTab,
@@ -226,52 +226,6 @@ namespace DynamicBrowserPanels
         }
 
         /// <summary>
-        /// Opens the notepad in the current tab
-        /// </summary>
-        private void OpenNotepad()
-        {
-            try
-            {
-                var currentTab = GetCurrentTab();
-                if (currentTab == null) return;
-                
-                // Get the next unique instance number
-                int instanceNumber = NotepadHelper.GetNextNotepadInstance();
-                
-                // Store the instance number in the tab
-                currentTab.NotepadInstance = instanceNumber;
-                
-                // Load saved notepad content for this instance
-                var notepadData = NotepadManager.LoadNotepad(instanceNumber);
-                
-                // Create HTML file with the content
-                var htmlPath = NotepadHelper.CreateNotepadHtml(notepadData.Content, instanceNumber);
-                
-                // Navigate to the notepad
-                var url = LocalMediaHelper.FilePathToUrl(htmlPath);
-                NavigateToUrl(url);
-                
-                // Set custom tab name
-                int selectedIndex = tabControl.SelectedIndex;
-                if (selectedIndex >= 0 && selectedIndex < _tabCustomNames.Count)
-                {
-                    _tabCustomNames[selectedIndex] = $"Notepad #{instanceNumber}";
-                    currentTab.CustomName = $"Notepad #{instanceNumber}";
-                    tabControl.TabPages[selectedIndex].Text = $"Notepad #{instanceNumber}";
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(
-                    $"Failed to open notepad: {ex.Message}",
-                    "Notepad Error",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Error
-                );
-            }
-        }
-
-        /// <summary>
         /// Sets a timer with the specified duration
         /// </summary>
         private void SetTimer(TimeSpan duration)
@@ -299,6 +253,43 @@ namespace DynamicBrowserPanels
         private void StopTimer()
         {
             TimerStopRequested?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>
+        /// Opens the notepad
+        /// </summary>
+        private void OpenNotepad()
+        {
+            try
+            {
+                var currentTab = GetCurrentTab();
+                if (currentTab == null) return;
+                
+                // Create the notepad HTML file
+                var htmlPath = NotepadHelper.CreateNotepadHtml();
+                
+                // Navigate to notepad #1 by default
+                var url = LocalMediaHelper.FilePathToUrl(htmlPath) + "?note=1";
+                NavigateToUrl(url);
+                
+                // Set custom tab name
+                int selectedIndex = tabControl.SelectedIndex;
+                if (selectedIndex >= 0 && selectedIndex < _tabCustomNames.Count)
+                {
+                    _tabCustomNames[selectedIndex] = "Notepad";
+                    currentTab.CustomName = "Notepad";
+                    tabControl.TabPages[selectedIndex].Text = "Notepad";
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"Failed to open notepad: {ex.Message}",
+                    "Notepad Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error
+                );
+            }
         }
     }
 }

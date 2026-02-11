@@ -25,7 +25,6 @@ namespace DynamicBrowserPanels
         
         // Add field
         private PlaylistManager _playlist;
-        private int _notepadInstance = -1; // -1 means not a notepad
 
         public WebView2 WebView => _webView;
         public bool IsInitialized => _isInitialized;
@@ -45,13 +44,6 @@ namespace DynamicBrowserPanels
                 }
                 return _playlist;
             }
-        }
-
-        // Add this property
-        public int NotepadInstance
-        {
-            get => _notepadInstance;
-            set => _notepadInstance = value;
         }
 
         /// <summary>
@@ -234,17 +226,17 @@ namespace DynamicBrowserPanels
                     if (json.Contains("\"saveNotepad\""))
                     {
                         // Handle notepad save
-                        HandleNotepadSave(json);
+                        
                     }
-                    else if (json.Contains("\"refreshNotepad\"") || json.Contains("\"requestCurrentContent\""))
+                    else if (json.Contains("\"loadNotepad\""))
                     {
-                        // Handle notepad refresh/content request
-                        HandleNotepadRefresh();
+                        // Handle loading a different notepad
+                        
                     }
                     else if (json.Contains("\"exportNotepad\""))
                     {
                         // Handle notepad export
-                        HandleNotepadExport(json);
+                        
                     }
                     else if (json.Contains("\"openExternalUrl\""))
                     {
@@ -279,6 +271,18 @@ namespace DynamicBrowserPanels
                     {
                         // Future: Could extract and sync playlist state here
                         // For now, the HTML player manages its own state
+                    }
+                    else if (json.Contains("\"loadNote\""))
+                    {
+                        HandleLoadNote(json);
+                    }
+                    else if (json.Contains("\"saveNote\""))
+                    {
+                        HandleSaveNote(json);
+                    }
+                    else if (json.Contains("\"exportNote\""))
+                    {
+                        HandleExportNote(json);
                     }
                 }
             }
@@ -317,101 +321,6 @@ namespace DynamicBrowserPanels
                 MessageBox.Show(
                     $"Failed to open URL: {ex.Message}",
                     "Error",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Error
-                );
-            }
-        }
-
-        /// <summary>
-        /// Handles saving notepad content from JavaScript
-        /// </summary>
-        private void HandleNotepadSave(string json)
-        {
-            try
-            {
-                using (JsonDocument document = JsonDocument.Parse(json))
-                {
-                    int instanceNumber = -1;
-                    if (document.RootElement.TryGetProperty("instanceNumber", out JsonElement instanceElement))
-                    {
-                        instanceNumber = instanceElement.GetInt32();
-                    }
-            
-                    if (document.RootElement.TryGetProperty("content", out JsonElement contentElement))
-                    {
-                        var content = contentElement.GetString() ?? string.Empty;
-                        content = UnescapeJavaScriptString(content);
-                
-                        // Save to JSON file
-                        var notepadData = new NotepadData
-                        {
-                            Content = content,
-                            HasUnsavedChanges = false
-                        };
-                
-                        NotepadManager.SaveNotepad(notepadData, instanceNumber);
-                
-                        // CRITICAL: Also regenerate the HTML file with the updated content
-                        // This ensures when you switch tabs and come back, you see the latest content
-                        NotepadHelper.CreateNotepadHtml(content, instanceNumber);
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                // Do nothing.
-            }
-        }
-
-        /// <summary>
-        /// Handles exporting notepad content to file
-        /// </summary>
-        private void HandleNotepadExport(string json)
-        {
-            try
-            {
-                using (JsonDocument document = JsonDocument.Parse(json))
-                {
-                    int instanceNumber = -1;
-                    if (document.RootElement.TryGetProperty("instanceNumber", out JsonElement instanceElement))
-                    {
-                        instanceNumber = instanceElement.GetInt32();
-                    }
-                    
-                    if (document.RootElement.TryGetProperty("content", out JsonElement contentElement))
-                    {
-                        var content = contentElement.GetString() ?? string.Empty;
-                        content = UnescapeJavaScriptString(content);
-                        
-                        using (var dialog = new SaveFileDialog())
-                        {
-                            dialog.Filter = "Text Files (*.txt)|*.txt|All Files (*.*)|*.*";
-                            dialog.DefaultExt = "txt";
-                            dialog.FileName = $"Notepad_{instanceNumber}_{DateTime.Now:yyyy-MM-dd_HHmmss}.txt";
-                            dialog.Title = "Export Notepad";
-                            
-                            if (dialog.ShowDialog() == DialogResult.OK)
-                            {
-                                if (NotepadManager.ExportToFile(content, dialog.FileName, instanceNumber))
-                                {
-                                    MessageBox.Show(
-                                        $"Notes exported successfully to:\n{dialog.FileName}",
-                                        "Export Complete",
-                                        MessageBoxButtons.OK,
-                                        MessageBoxIcon.Information
-                                    );
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(
-                    $"Failed to export notepad: {ex.Message}",
-                    "Export Error",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Error
                 );
@@ -460,34 +369,116 @@ namespace DynamicBrowserPanels
         }
 
         /// <summary>
-        /// Handles refreshing notepad content from disk
+        /// Handles loading a note from JavaScript
         /// </summary>
-        private async void HandleNotepadRefresh()
+        private async void HandleLoadNote(string json)
         {
             try
             {
-                // Load current content from disk using the instance number
-                var notepadData = NotepadManager.LoadNotepad(_notepadInstance);
-                var content = notepadData.Content ?? string.Empty;
-
-                // Escape for JSON transmission
-                var escapedContent = NotepadHelper.EscapeForJavaScript(content);
-                
-                // Send updated content to the page
-                var updateScript = $@"
-                    window.dispatchEvent(new MessageEvent('message', {{
-                        data: {{
-                            action: 'updateContent',
-                            content: ""{escapedContent}""
-                        }}
-                    }}));
-                ";
-                
-                await _webView.CoreWebView2.ExecuteScriptAsync(updateScript);
+                using (JsonDocument document = JsonDocument.Parse(json))
+                {
+                    int noteNumber = 1;
+                    if (document.RootElement.TryGetProperty("noteNumber", out JsonElement noteElement))
+                    {
+                        noteNumber = noteElement.GetInt32();
+                    }
+                    
+                    // Load from disk
+                    var noteData = NotepadManager.LoadNote(noteNumber);
+                    var content = noteData.Content ?? string.Empty;
+                    
+                    // Escape for JavaScript
+                    var escaped = NotepadHelper.EscapeForJavaScript(content);
+                    
+                    // Call loadNote function directly
+                    var script = $"if (typeof loadNote === 'function') loadNote(\"{escaped}\");";
+                    await _webView.CoreWebView2.ExecuteScriptAsync(script);
+                }
             }
             catch (Exception ex)
             {
-                // Do nothing
+                System.Diagnostics.Debug.WriteLine($"Error loading note: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Handles saving a note from JavaScript
+        /// </summary>
+        private void HandleSaveNote(string json)
+        {
+            try
+            {
+                using (JsonDocument document = JsonDocument.Parse(json))
+                {
+                    int noteNumber = 1;
+                    if (document.RootElement.TryGetProperty("noteNumber", out JsonElement noteElement))
+                    {
+                        noteNumber = noteElement.GetInt32();
+                    }
+                    
+                    if (document.RootElement.TryGetProperty("content", out JsonElement contentElement))
+                    {
+                        var content = contentElement.GetString() ?? string.Empty;
+                        NotepadManager.SaveNote(noteNumber, content);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error saving note: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Handles exporting a note from JavaScript
+        /// </summary>
+        private void HandleExportNote(string json)
+        {
+            try
+            {
+                using (JsonDocument document = JsonDocument.Parse(json))
+                {
+                    int noteNumber = 1;
+                    if (document.RootElement.TryGetProperty("noteNumber", out JsonElement noteElement))
+                    {
+                        noteNumber = noteElement.GetInt32();
+                    }
+                    
+                    if (document.RootElement.TryGetProperty("content", out JsonElement contentElement))
+                    {
+                        var content = contentElement.GetString() ?? string.Empty;
+                        
+                        using (var dialog = new SaveFileDialog())
+                        {
+                            dialog.Filter = "Text Files (*.txt)|*.txt|All Files (*.*)|*.*";
+                            dialog.DefaultExt = "txt";
+                            dialog.FileName = $"Note_{noteNumber}_{DateTime.Now:yyyy-MM-dd_HHmmss}.txt";
+                            dialog.Title = "Export Note";
+                            
+                            if (dialog.ShowDialog() == DialogResult.OK)
+                            {
+                                if (NotepadManager.ExportNote(content, dialog.FileName))
+                                {
+                                    MessageBox.Show(
+                                        $"Note exported successfully to:\n{dialog.FileName}",
+                                        "Export Complete",
+                                        MessageBoxButtons.OK,
+                                        MessageBoxIcon.Information
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"Failed to export note: {ex.Message}",
+                    "Export Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error
+                );
             }
         }
 
