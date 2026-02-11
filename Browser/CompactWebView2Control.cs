@@ -49,6 +49,7 @@ namespace DynamicBrowserPanels
         private ToolStripMenuItem mnuUninstall;
         private ToolStripMenuItem mnuSaveProtectedTemplate;
         private ToolStripMenuItem mnuRemoveTemplateProtection;
+        private ToolStripMenuItem mnuKeepAwake;
 
         // Tab management
         private List<BrowserTab> _browserTabs = new List<BrowserTab>();
@@ -496,6 +497,32 @@ namespace DynamicBrowserPanels
         private void OnSplitRequested(Orientation orientation)
         {
             SplitRequested?.Invoke(this, new SplitRequestedEventArgs(orientation));
+        }
+
+        /// <summary>
+        /// Toggles keep awake mode to prevent computer from sleeping
+        /// </summary>
+        private void ToggleKeepAwake()
+        {
+            bool isEnabled = KeepAwakeManager.Toggle();
+            
+            // Update menu item check state
+            if (mnuKeepAwake != null)
+            {
+                mnuKeepAwake.Checked = isEnabled;
+            }
+            
+            // Show notification
+            string message = isEnabled
+                ? "Keep Awake enabled - your computer will not sleep during streaming"
+                : "Keep Awake disabled - normal power management resumed";
+            
+            MessageBox.Show(
+                message,
+                "Keep Awake",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information
+            );
         }
 
         protected override void Dispose(bool disposing)

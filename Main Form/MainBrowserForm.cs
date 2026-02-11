@@ -1073,6 +1073,9 @@ namespace DynamicBrowserPanels
         {
             if (disposing)
             {
+                // Disable keep awake when closing
+                KeepAwakeManager.Disable();
+                
                 DisposeAllControls(rootPanel);
                 _timerManager?.Dispose();
                 _loadingOverlay?.Dispose();

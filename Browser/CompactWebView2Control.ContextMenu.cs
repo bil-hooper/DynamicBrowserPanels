@@ -68,6 +68,11 @@ namespace DynamicBrowserPanels
                 new ToolStripMenuItem("⏹ Stop Timer", null, (s, e) => StopTimer())
             });
             
+            // Keep Awake menu item
+            mnuKeepAwake = new ToolStripMenuItem("☕ Keep Awake");
+            mnuKeepAwake.CheckOnClick = true;
+            mnuKeepAwake.Click += (s, e) => ToggleKeepAwake();
+            
             // History menu
             mnuHistory = new ToolStripMenuItem("📜 History");
             mnuHistory.DropDownItems.AddRange(new ToolStripItem[]
@@ -179,6 +184,7 @@ namespace DynamicBrowserPanels
                 mnuPlaylistControls,
                 new ToolStripSeparator(),
                 mnuTimer,
+                mnuKeepAwake,
                 new ToolStripSeparator(),
                 mnuManagePasswords,
                 mnuDropboxSync,
@@ -257,6 +263,12 @@ namespace DynamicBrowserPanels
             else
             {
                 mnuSaveLayoutDirect.Text = "💾 Save Layout";
+            }
+
+            // Update Keep Awake checked state
+            if (mnuKeepAwake != null)
+            {
+                mnuKeepAwake.Checked = KeepAwakeManager.IsEnabled;
             }
 
             // Show Install or Uninstall based on installation status
