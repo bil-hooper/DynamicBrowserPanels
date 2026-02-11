@@ -8,8 +8,14 @@ namespace DynamicBrowserPanels
     /// </summary>
     public static class NotepadHelper
     {
+        private static readonly string NotepadDirectory = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "DynamicBrowserPanels",
+            "Notepads"
+        );
+
         private static readonly string NotepadHtmlPath = Path.Combine(
-            Path.GetTempPath(),
+            NotepadDirectory,
             "DynamicBrowserPanels_Notepad.html"
         );
 
@@ -527,6 +533,12 @@ Double-click the view to edit again.""></textarea>
     </script>
 </body>
 </html>";
+
+            // Ensure directory exists
+            if (!Directory.Exists(NotepadDirectory))
+            {
+                Directory.CreateDirectory(NotepadDirectory);
+            }
 
             // Use UTF8 encoding when writing the file
             File.WriteAllText(NotepadHtmlPath, html, System.Text.Encoding.UTF8);
