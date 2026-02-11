@@ -435,9 +435,94 @@ namespace DynamicBrowserPanels
         }
 
         /// <summary>
-        /// Removes the current song from the playlist
+        /// Removes the current song from the playlist (works with both local and online)
         /// </summary>
         private void RemoveCurrentSong()
+        {
+            var currentTab = GetCurrentTab();
+            if (currentTab == null) return;
+
+            var playlistType = currentTab.CurrentPlaylistType;
+
+            if (playlistType == PlaylistType.Local)
+            {
+                RemoveCurrentLocalSong();
+            }
+            else if (playlistType == PlaylistType.Online)
+            {
+                RemoveCurrentOnlineSong();
+            }
+            else
+            {
+                MessageBox.Show(
+                    "No playlist loaded or playlist is empty.",
+                    "Remove Song",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information
+                );
+            }
+        }
+
+        /// <summary>
+        /// Shows the playlist viewer (works with both local and online)
+        /// </summary>
+        private void ShowPlaylistViewer()
+        {
+            var currentTab = GetCurrentTab();
+            if (currentTab == null) return;
+
+            var playlistType = currentTab.CurrentPlaylistType;
+
+            if (playlistType == PlaylistType.Local)
+            {
+                ShowLocalPlaylistViewer();
+            }
+            else if (playlistType == PlaylistType.Online)
+            {
+                ShowOnlinePlaylistViewer();
+            }
+            else
+            {
+                MessageBox.Show(
+                    "No playlist loaded",
+                    "Playlist",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information
+                );
+            }
+        }
+
+        /// <summary>
+        /// Saves the current playlist (works with both local and online)
+        /// </summary>
+        private void SavePlaylist()
+        {
+            var currentTab = GetCurrentTab();
+            if (currentTab == null) return;
+
+            var playlistType = currentTab.CurrentPlaylistType;
+
+            if (playlistType == PlaylistType.Local)
+            {
+                SaveLocalPlaylist();
+            }
+            else if (playlistType == PlaylistType.Online)
+            {
+                SaveOnlinePlaylist();
+            }
+            else
+            {
+                MessageBox.Show(
+                    "No playlist to save",
+                    "Playlist",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information
+                );
+            }
+        }
+
+        // Rename existing methods to be specific
+        private void RemoveCurrentLocalSong()
         {
             var currentTab = GetCurrentTab();
             if (currentTab?.Playlist == null || currentTab.Playlist.Count == 0)
@@ -451,7 +536,6 @@ namespace DynamicBrowserPanels
                 return;
             }
 
-            // Get the current index before removal
             int currentIndex = currentTab.Playlist.CurrentIndex;
             
             if (currentIndex < 0 || currentIndex >= currentTab.Playlist.MediaFiles.Count)
@@ -468,13 +552,9 @@ namespace DynamicBrowserPanels
             var currentFile = currentTab.Playlist.MediaFiles[currentIndex];
             var fileName = Path.GetFileName(currentFile);
 
-            // Check if this is the last song in the playlist
             if (currentTab.Playlist.Count == 1)
             {
-                // Stop playing and clear the playlist
                 currentTab.Playlist.RemoveFile(currentIndex);
-                
-                // Navigate to home page to stop playback
                 NavigateTabToUrl(currentTab, HomeUrl);
                 
                 MessageBox.Show(
@@ -486,18 +566,14 @@ namespace DynamicBrowserPanels
             }
             else
             {
-                // Multiple songs in playlist - skip to next and remove current
                 string nextFile = null;
                 
-                // Determine which song to play next
                 if (currentIndex < currentTab.Playlist.MediaFiles.Count - 1)
                 {
-                    // Not the last song - get the next one (same index after removal)
                     nextFile = currentTab.Playlist.MediaFiles[currentIndex + 1];
                 }
                 else
                 {
-                    // Last song - wrap to first if repeat is on, otherwise play previous
                     if (currentTab.Playlist.Repeat)
                     {
                         nextFile = currentTab.Playlist.MediaFiles[0];
@@ -508,13 +584,10 @@ namespace DynamicBrowserPanels
                     }
                 }
 
-                // Remove the current song
                 currentTab.Playlist.RemoveFile(currentIndex);
 
-                // Navigate to the next song
                 if (nextFile != null)
                 {
-                    // Find the new index of the next file after removal
                     int newIndex = currentTab.Playlist.MediaFiles.IndexOf(nextFile);
                     if (newIndex >= 0)
                     {
@@ -533,10 +606,65 @@ namespace DynamicBrowserPanels
             }
         }
 
-        /// <summary>
-        /// Shows the playlist viewer dialog
-        /// </summary>
-        private void ShowPlaylistViewer()
+        private void RemoveCurrentOnlineSong()
+        {
+            var currentTab = GetCurrentTab();
+            if (currentTab?.OnlinePlaylist == null || currentTab.OnlinePlaylist.Count == 0)
+            {
+                MessageBox.Show(
+                    "No online playlist loaded or playlist is empty.",
+                    "Remove Item",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information
+                );
+                return;
+            }
+
+            int currentIndex = currentTab.OnlinePlaylist.CurrentIndex;
+            
+            if (currentIndex < 0 || currentIndex >= currentTab.OnlinePlaylist.MediaItems.Count)
+            {
+                MessageBox.Show(
+                    "No item is currently selected.",
+                    "Remove Item",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information
+                );
+                return;
+            }
+
+            var currentItem = currentTab.OnlinePlaylist.MediaItems[currentIndex];
+
+            if (currentTab.OnlinePlaylist.Count == 1)
+            {
+                currentTab.OnlinePlaylist.RemoveItem(currentIndex);
+                NavigateTabToUrl(currentTab, HomeUrl);
+                
+                MessageBox.Show(
+                    $"Removed: {currentItem.DisplayName}\n\nPlaylist is now empty.",
+                    "Item Removed",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information
+                );
+            }
+            else
+            {
+                currentTab.OnlinePlaylist.RemoveItem(currentIndex);
+
+                // Reload the playlist player
+                ShowOnlinePlaylistPlayer();
+
+                MessageBox.Show(
+                    $"Removed: {currentItem.DisplayName}\n\n" +
+                    $"Remaining items: {currentTab.OnlinePlaylist.Count}",
+                    "Item Removed",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information
+                );
+            }
+        }
+
+        private void ShowLocalPlaylistViewer()
         {
             var currentTab = GetCurrentTab();
             if (currentTab?.Playlist == null || currentTab.Playlist.Count == 0)
@@ -547,7 +675,7 @@ namespace DynamicBrowserPanels
 
             using (var form = new Form())
             {
-                form.Text = "Playlist";
+                form.Text = "Local Playlist";
                 form.Size = new Size(600, 400);
                 form.StartPosition = FormStartPosition.CenterParent;
 
@@ -583,10 +711,51 @@ namespace DynamicBrowserPanels
             }
         }
 
-        /// <summary>
-        /// Saves the current playlist to an M3U file
-        /// </summary>
-        private void SavePlaylist()
+        private void ShowOnlinePlaylistViewer()
+        {
+            var currentTab = GetCurrentTab();
+            if (currentTab?.OnlinePlaylist == null || currentTab.OnlinePlaylist.Count == 0)
+            {
+                MessageBox.Show("No online playlist loaded", "Playlist", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            using (var form = new Form())
+            {
+                form.Text = "Online Playlist";
+                form.Size = new Size(600, 400);
+                form.StartPosition = FormStartPosition.CenterParent;
+
+                var listBox = new ListBox
+                {
+                    Dock = DockStyle.Fill,
+                    Font = new Font("Consolas", 10)
+                };
+
+                for (int i = 0; i < currentTab.OnlinePlaylist.MediaItems.Count; i++)
+                {
+                    var item = currentTab.OnlinePlaylist.MediaItems[i];
+                    var prefix = i == currentTab.OnlinePlaylist.CurrentIndex ? "▶ " : "   ";
+                    listBox.Items.Add($"{prefix}{item.DisplayName} ({item.MediaType})");
+                }
+
+                listBox.SelectedIndex = currentTab.OnlinePlaylist.CurrentIndex;
+                listBox.DoubleClick += (s, e) =>
+                {
+                    if (listBox.SelectedIndex >= 0)
+                    {
+                        currentTab.OnlinePlaylist.JumpTo(listBox.SelectedIndex);
+                        ShowOnlinePlaylistPlayer();
+                        form.Close();
+                    }
+                };
+
+                form.Controls.Add(listBox);
+                form.ShowDialog();
+            }
+        }
+
+        private void SaveLocalPlaylist()
         {
             var currentTab = GetCurrentTab();
             if (currentTab?.Playlist == null || currentTab.Playlist.Count == 0)
@@ -612,6 +781,83 @@ namespace DynamicBrowserPanels
                     MessageBox.Show("Playlist saved!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
             }
+        }
+
+        private void SaveOnlinePlaylist()
+        {
+            var currentTab = GetCurrentTab();
+            if (currentTab?.OnlinePlaylist == null || currentTab.OnlinePlaylist.Count == 0)
+            {
+                MessageBox.Show("No online playlist to save", "Playlist", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            using (var saveFileDialog = new SaveFileDialog())
+            {
+                // JSON is the recommended format for online playlists (machine-agnostic, syncs via Dropbox)
+                // M3U format is also supported for compatibility
+                saveFileDialog.Filter = "JSON Playlist (*.json)|*.json|M3U Playlist (*.m3u)|*.m3u";
+                saveFileDialog.FilterIndex = 1; // Default to JSON
+                saveFileDialog.FileName = "online_playlist.json";
+                saveFileDialog.InitialDirectory = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "DynamicBrowserPanels",
+                    "Playlists"
+                );
+                saveFileDialog.RestoreDirectory = true;
+
+                if (saveFileDialog.ShowDialog() == DialogResult.OK)
+                {
+                    try
+                    {
+                        if (saveFileDialog.FileName.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+                        {
+                            // Save as JSON (recommended for online playlists)
+                            currentTab.OnlinePlaylist.SaveToFile(saveFileDialog.FileName);
+                        }
+                        else
+                        {
+                            // Save as M3U (compatibility format)
+                            SaveOnlinePlaylistAsM3U(saveFileDialog.FileName);
+                        }
+                        
+                        MessageBox.Show(
+                            "Online playlist saved!\n\n" +
+                            "JSON playlists are machine-agnostic and ideal for syncing via Dropbox.",
+                            "Success",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Information
+                        );
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show(
+                            $"Error saving playlist:\n{ex.Message}",
+                            "Save Error",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Error
+                        );
+                    }
+                }
+            }
+        }
+
+        private void SaveOnlinePlaylistAsM3U(string filePath)
+        {
+            var currentTab = GetCurrentTab();
+            if (currentTab?.OnlinePlaylist == null) return;
+
+            var lines = new List<string> { "#EXTM3U" };
+            
+            foreach (var item in currentTab.OnlinePlaylist.MediaItems)
+            {
+                // Add EXTINF line with duration and title
+                var duration = item.DurationSeconds ?? -1;
+                lines.Add($"#EXTINF:{duration},{item.DisplayName}");
+                lines.Add(item.Url);
+            }
+
+            File.WriteAllLines(filePath, lines);
         }
     }
 }

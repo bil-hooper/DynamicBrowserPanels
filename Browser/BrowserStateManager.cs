@@ -279,7 +279,7 @@ namespace DynamicBrowserPanels
         /// <summary>
         /// Loads the state from a specific file path
         /// </summary>
-        private static BrowserState LoadState(string filePath)
+        public static BrowserState LoadState(string filePath)
         {
             try
             {

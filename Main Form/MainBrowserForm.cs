@@ -96,8 +96,74 @@ namespace DynamicBrowserPanels
                 }
             }
 
-            // Load state after sync completes
+            // Check if we should prompt to restore last template (only if NOT in command-line mode)
+            if (!BrowserStateManager.IsCommandLineMode && 
+                AppConfiguration.PromptRestoreLastTemplate &&
+                !string.IsNullOrEmpty(AppConfiguration.LastLoadedTemplatePath) &&
+                File.Exists(AppConfiguration.LastLoadedTemplatePath))
+            {
+                var templateName = Path.GetFileName(AppConfiguration.LastLoadedTemplatePath);
+                var result = MessageBox.Show(
+                    $"Would you like to restore your last session?\n\n" +
+                    $"Template: {templateName}",
+                    "Restore Last Session",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Question,
+                    MessageBoxDefaultButton.Button1
+                );
+
+                if (result == DialogResult.Yes)
+                {
+                    // Load the last template
+                    var state = BrowserStateManager.LoadState(AppConfiguration.LastLoadedTemplatePath);
+                    if (state != null)
+                    {
+                        BrowserStateManager.LoadedSessionFilePath = AppConfiguration.LastLoadedTemplatePath;
+                        _lastLoadedFileName = templateName;
+                        this.Text = $"{templateName} - Dynamic Browser Panels";
+                        _timerManager.UpdateOriginalTitle(this.Text);
+
+                        // Apply the loaded state
+                        await ApplyLoadedState(state);
+                        return; // Don't call LoadStateAsync()
+                    }
+                }
+            }
+
+            // Load state after sync completes (normal flow)
             await LoadStateAsync();
+        }
+
+        /// <summary>
+        /// Applies a loaded state to the form
+        /// </summary>
+        private async Task ApplyLoadedState(BrowserState state)
+        {
+            // Reset the current layout first
+            DisposeAllControls(rootPanel);
+            rootPanel.Controls.Clear();
+
+            // Restore form size with validation
+            int width = state.FormWidth > 0 ? state.FormWidth : 1184;
+            int height = state.FormHeight > 0 ? state.FormHeight : 761;
+            this.Size = new Size(width, height);
+
+            // Restore form position if saved
+            if (state.FormX >= 0 && state.FormY >= 0)
+            {
+                this.Location = new Point(state.FormX, state.FormY);
+                EnsureWindowVisible();
+            }
+
+            // Restore panel layout
+            if (state.RootPanel != null)
+            {
+                await RestorePanelStateAsync(rootPanel, state.RootPanel);
+            }
+            else
+            {
+                await CreateDefaultBrowser();
+            }
         }
 
         /// <summary>
@@ -524,6 +590,9 @@ namespace DynamicBrowserPanels
 
             if (result == DialogResult.Yes)
             {
+                // Clear the last loaded template
+                AppConfiguration.LastLoadedTemplatePath = string.Empty;
+
                 // If in command-line mode or session mode, end the session first
                 if (BrowserStateManager.IsCommandLineMode)
                 {
@@ -637,36 +706,14 @@ namespace DynamicBrowserPanels
                 // Store the loaded file name at the form level
                 _lastLoadedFileName = Path.GetFileName(loadedFilePath);
 
+                // Save this as the last loaded template for future sessions
+                AppConfiguration.LastLoadedTemplatePath = loadedFilePath;
+
                 this.Text = $"{Path.GetFileName(_lastLoadedFileName)} - Dynamic Browser Panels";
                 _timerManager.UpdateOriginalTitle(this.Text);
 
-                // Reset the current layout first
-                DisposeAllControls(rootPanel);
-                rootPanel.Controls.Clear();
-
-                // Restore form size with validation
-                int width = state.FormWidth > 0 ? state.FormWidth : 1184;
-                int height = state.FormHeight > 0 ? state.FormHeight : 761;
-                this.Size = new Size(width, height);
-
-                // Restore form position if saved
-                if (state.FormX >= 0 && state.FormY >= 0)
-                {
-                    this.Location = new Point(state.FormX, state.FormY);
-
-                    // Ensure the window is visible on screen
-                    EnsureWindowVisible();
-                }
-
-                // Restore panel layout - AWAIT this
-                if (state.RootPanel != null)
-                {
-                    await RestorePanelStateAsync(rootPanel, state.RootPanel);
-                }
-                else
-                {
-                    await CreateDefaultBrowser();
-                }
+                // Apply the loaded state
+                await ApplyLoadedState(state);
             }
         }
 

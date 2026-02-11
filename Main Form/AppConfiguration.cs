@@ -93,6 +93,54 @@ namespace DynamicBrowserPanels
         }
 
         /// <summary>
+        /// Gets or sets the last loaded template path (for session restore on startup)
+        /// </summary>
+        public static string LastLoadedTemplatePath
+        {
+            get
+            {
+                lock (_lock)
+                {
+                    EnsureSettingsLoaded();
+                    return _settings.LastLoadedTemplatePath;
+                }
+            }
+            set
+            {
+                lock (_lock)
+                {
+                    EnsureSettingsLoaded();
+                    _settings.LastLoadedTemplatePath = value;
+                    SaveSettings();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets whether to prompt to restore last template on startup
+        /// </summary>
+        public static bool PromptRestoreLastTemplate
+        {
+            get
+            {
+                lock (_lock)
+                {
+                    EnsureSettingsLoaded();
+                    return _settings.PromptRestoreLastTemplate;
+                }
+            }
+            set
+            {
+                lock (_lock)
+                {
+                    EnsureSettingsLoaded();
+                    _settings.PromptRestoreLastTemplate = value;
+                    SaveSettings();
+                }
+            }
+        }
+
+        /// <summary>
         /// Ensures settings are loaded from disk
         /// </summary>
         private static void EnsureSettingsLoaded()
@@ -160,6 +208,8 @@ namespace DynamicBrowserPanels
             public TimeSpan LastCustomTimerDuration { get; set; } = TimeSpan.FromMinutes(5);
             public DropboxSyncSettings DropboxSyncSettings { get; set; } = new DropboxSyncSettings();
             public string LastMediaDirectory { get; set; } = string.Empty;
+            public string LastLoadedTemplatePath { get; set; } = string.Empty;
+            public bool PromptRestoreLastTemplate { get; set; } = true;
         }
     }
 }

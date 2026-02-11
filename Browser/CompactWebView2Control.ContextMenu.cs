@@ -36,8 +36,13 @@ namespace DynamicBrowserPanels
             mnuPlaylistControls = new ToolStripMenuItem("🎵 Playlist");
             mnuPlaylistControls.DropDownItems.AddRange(new ToolStripItem[]
             {
-                new ToolStripMenuItem("📂 Open Playlist...", null, (s, e) => OpenPlaylist()),
-                new ToolStripMenuItem("➕ Add Songs...", null, (s, e) => AddSongsToPlaylist()),
+                new ToolStripMenuItem("📂 Open Local Playlist...", null, (s, e) => OpenPlaylist()),
+                new ToolStripMenuItem("➕ Add Local Songs...", null, (s, e) => AddSongsToPlaylist()),
+                new ToolStripSeparator(),
+                new ToolStripMenuItem("🌐 Open Online Playlist...", null, (s, e) => OpenOnlinePlaylist()),
+                new ToolStripMenuItem("➕ Add Online URL...", null, (s, e) => AddSingleOnlineItem()),
+                new ToolStripMenuItem("➕ Add Multiple URLs...", null, (s, e) => AddBulkOnlineUrls()),
+                new ToolStripSeparator(),
                 new ToolStripMenuItem("🗑️ Remove Current Song", null, (s, e) => RemoveCurrentSong()),
                 new ToolStripSeparator(),
                 new ToolStripMenuItem("📋 Show Playlist...", null, (s, e) => ShowPlaylistViewer()),

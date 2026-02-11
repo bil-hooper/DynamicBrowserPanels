@@ -13,6 +13,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Sync\**" />
+    <EmbeddedResource Remove="Sync\**" />
+    <None Remove="Sync\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Content Include="Rubik.ico" />
   </ItemGroup>
 
@@ -26,7 +32,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Sync\" />
+    <Folder Include="UI\" />
   </ItemGroup>
 
 </Project>

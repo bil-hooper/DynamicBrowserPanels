@@ -25,6 +25,7 @@ namespace DynamicBrowserPanels
         
         // Add field
         private PlaylistManager _playlist;
+        private OnlineMediaPlaylist _onlinePlaylist;
 
         public WebView2 WebView => _webView;
         public bool IsInitialized => _isInitialized;
@@ -43,6 +44,19 @@ namespace DynamicBrowserPanels
                     // No longer need MediaChanged event - playlist player handles everything
                 }
                 return _playlist;
+            }
+        }
+
+        // Add property for online playlist
+        public OnlineMediaPlaylist OnlinePlaylist
+        {
+            get
+            {
+                if (_onlinePlaylist == null)
+                {
+                    _onlinePlaylist = new OnlineMediaPlaylist();
+                }
+                return _onlinePlaylist;
             }
         }
 
@@ -482,9 +496,31 @@ namespace DynamicBrowserPanels
             }
         }
 
+        /// <summary>
+        /// Gets the type of playlist currently active (if any)
+        /// </summary>
+        public PlaylistType CurrentPlaylistType
+        {
+            get
+            {
+                if (_playlist != null && _playlist.Count > 0)
+                    return PlaylistType.Local;
+                if (_onlinePlaylist != null && _onlinePlaylist.Count > 0)
+                    return PlaylistType.Online;
+                return PlaylistType.None;
+            }
+        }
+
         public void Dispose()
         {
             _webView?.Dispose();
         }
+    }
+
+    public enum PlaylistType
+    {
+        None,
+        Local,
+        Online
     }
 }

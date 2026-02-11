@@ -1510,6 +1510,408 @@ namespace DynamicBrowserPanels
         }
 
         /// <summary>
+        /// Creates an HTML page for playing an online media playlist
+        /// </summary>
+        public static string CreateOnlinePlaylistPlayerHtml(List<OnlineMediaItem> mediaItems, int currentIndex = 0, bool shuffle = false, bool repeat = false)
+        {
+            if (mediaItems == null || mediaItems.Count == 0)
+                return "<html><body><h1>Empty Playlist</h1></body></html>";
+
+            // Build JavaScript array of media items
+            var itemsJson = string.Join(",\n        ", mediaItems.Select(item => 
+                $"{{ url: {System.Text.Json.JsonSerializer.Serialize(item.Url)}, " +
+                $"name: {System.Text.Json.JsonSerializer.Serialize(item.DisplayName ?? "Untitled")}, " +
+                $"description: {System.Text.Json.JsonSerializer.Serialize(item.Description ?? "")}, " +
+                $"type: '{item.MediaType}', " +
+                $"thumbnail: {System.Text.Json.JsonSerializer.Serialize(item.ThumbnailUrl ?? "")} }}"
+            ));
+
+            return $@"
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset='UTF-8'>
+    <title>Online Media Playlist</title>
+    <style>
+        * {{
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }}
+        body {{
+            background: linear-gradient(135deg, #1e1e2e 0%, #2d2d44 100%);
+            font-family: 'Segoe UI', Arial, sans-serif;
+            color: #fff;
+            height: 100vh;
+            display: flex;
+            overflow: hidden;
+        }}
+        .player-container {{
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            gap: 15px;
+        }}
+        .title-bar {{
+            font-size: 20px;
+            font-weight: 600;
+            color: #a8b3ff;
+            text-align: center;
+            padding: 10px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 8px;
+        }}
+        .media-wrapper {{
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+        }}
+        #mediaFrame {{
+            width: 100%;
+            height: 100%;
+            border: none;
+        }}
+        .controls {{
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            align-items: center;
+            padding: 15px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 8px;
+            flex-wrap: wrap;
+        }}
+        .btn {{
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            border: none;
+            padding: 12px 20px;
+            cursor: pointer;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }}
+        .btn:hover {{
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }}
+        .btn:active {{
+            transform: translateY(0);
+        }}
+        .btn:disabled {{
+            background: #555;
+            cursor: not-allowed;
+            opacity: 0.5;
+            box-shadow: none;
+        }}
+        .btn.active {{
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }}
+        .info {{
+            text-align: center;
+            font-size: 14px;
+            color: #ccc;
+        }}
+        .playlist-sidebar {{
+            width: 350px;
+            background: rgba(0,0,0,0.4);
+            border-left: 1px solid rgba(255,255,255,0.1);
+            display: flex;
+            flex-direction: column;
+        }}
+        .playlist-header {{
+            padding: 15px;
+            background: rgba(0,0,0,0.5);
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            font-weight: 600;
+            font-size: 16px;
+        }}
+        .playlist {{
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+        }}
+        .playlist-item {{
+            padding: 12px;
+            margin-bottom: 8px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: 2px solid transparent;
+        }}
+        .playlist-item:hover {{
+            background: rgba(255,255,255,0.1);
+            transform: translateX(5px);
+        }}
+        .playlist-item.active {{
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-color: #a8b3ff;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.5);
+        }}
+        .playlist-item .name {{
+            font-weight: 500;
+            margin-bottom: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }}
+        .playlist-item .type {{
+            font-size: 11px;
+            color: #999;
+        }}
+        .playlist::-webkit-scrollbar {{
+            width: 8px;
+        }}
+        .playlist::-webkit-scrollbar-track {{
+            background: rgba(0,0,0,0.2);
+        }}
+        .playlist::-webkit-scrollbar-thumb {{
+            background: rgba(168, 179, 255, 0.3);
+            border-radius: 4px;
+        }}
+        .playlist::-webkit-scrollbar-thumb:hover {{
+            background: rgba(168, 179, 255, 0.5);
+        }}
+    </style>
+</head>
+<body>
+    <div class='player-container'>
+        <div class='title-bar' id='titleBar'>Online Media Playlist</div>
+        
+        <div class='media-wrapper'>
+            <iframe id='mediaFrame' allowfullscreen allow='autoplay; encrypted-media'></iframe>
+        </div>
+        
+        <div class='info' id='info'>Loading...</div>
+        
+        <div class='controls'>
+            <button class='btn' onclick='playPrevious()'>⏮️ Previous</button>
+            <button class='btn' onclick='playNext()'>⏭️ Next</button>
+            <button class='btn' onclick='toggleShuffle()' id='shuffleBtn'>🔀 Shuffle</button>
+            <button class='btn' onclick='toggleRepeat()' id='repeatBtn'>🔁 Repeat</button>
+        </div>
+    </div>
+    
+    <div class='playlist-sidebar'>
+        <div class='playlist-header'>
+            Online Playlist ({mediaItems.Count} items)
+        </div>
+        <div class='playlist' id='playlist'></div>
+    </div>
+    
+    <script>
+        // Playlist data
+        const mediaItems = [
+        {itemsJson}
+        ];
+        
+        let currentPlaylistIndex = {currentIndex};
+        let shuffle = {(shuffle ? "true" : "false")};
+        let repeat = {(repeat ? "true" : "false")};
+        let playOrder = [];
+        
+        const mediaFrame = document.getElementById('mediaFrame');
+        const titleBar = document.getElementById('titleBar');
+        const info = document.getElementById('info');
+        const playlistEl = document.getElementById('playlist');
+        const shuffleBtn = document.getElementById('shuffleBtn');
+        const repeatBtn = document.getElementById('repeatBtn');
+        
+        function init() {{
+            generatePlayOrder();
+            renderPlaylist();
+            updateButtons();
+            loadItem(currentPlaylistIndex);
+        }}
+        
+        function generatePlayOrder() {{
+            playOrder = [];
+            for (let i = 0; i < mediaItems.length; i++) {{
+                playOrder.push(i);
+            }}
+            
+            if (shuffle) {{
+                for (let i = playOrder.length - 1; i > 0; i--) {{
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [playOrder[i], playOrder[j]] = [playOrder[j], playOrder[i]];
+                }}
+            }}
+        }}
+        
+        function renderPlaylist() {{
+            playlistEl.innerHTML = '';
+            const currentItemIndex = playOrder[currentPlaylistIndex];
+            
+            mediaItems.forEach((item, index) => {{
+                const div = document.createElement('div');
+                div.className = 'playlist-item' + (index === currentItemIndex ? ' active' : '');
+                
+                const icon = getMediaIcon(item.type);
+                div.innerHTML = `
+                    <div class='name'>${{icon}} ${{item.name}}</div>
+                    <div class='type'>Item ${{index + 1}} • ${{item.type}}</div>
+                `;
+                div.onclick = () => playItemByIndex(index);
+                playlistEl.appendChild(div);
+            }});
+            
+            const activeItem = playlistEl.querySelector('.active');
+            if (activeItem) {{
+                activeItem.scrollIntoView({{ block: 'center', behavior: 'smooth' }});
+            }}
+        }}
+        
+        function getMediaIcon(type) {{
+            switch(type) {{
+                case 'YouTube': return '📺';
+                case 'Vimeo': return '🎬';
+                case 'SoundCloud': return '🎵';
+                case 'Dropbox': return '📦';
+                case 'DirectStream': return '🎥';
+                default: return '🌐';
+            }}
+        }}
+        
+        function loadItem(playlistIndex) {{
+            if (playlistIndex < 0 || playlistIndex >= playOrder.length) return;
+            
+            currentPlaylistIndex = playlistIndex;
+            const itemIndex = playOrder[currentPlaylistIndex];
+            const item = mediaItems[itemIndex];
+            
+            titleBar.textContent = item.name;
+            info.textContent = `Item ${{itemIndex + 1}} of ${{mediaItems.length}} • ${{item.type}}`;
+            
+            // Process URL based on type
+            const frameUrl = processMediaUrl(item.url, item.type);
+            mediaFrame.src = frameUrl;
+            
+            renderPlaylist();
+        }}
+        
+        function processMediaUrl(url, type) {{
+            // Convert URLs to embeddable format
+            if (type === 'YouTube') {{
+                // Extract video ID and create embed URL
+                let videoId = '';
+                if (url.includes('youtube.com/watch?v=')) {{
+                    videoId = url.split('v=')[1]?.split('&')[0];
+                }} else if (url.includes('youtu.be/')) {{
+                    videoId = url.split('youtu.be/')[1]?.split('?')[0];
+                }}
+                return videoId ? `https://www.youtube.com/embed/${{videoId}}?autoplay=1` : url;
+            }}
+            
+            if (type === 'Vimeo') {{
+                const videoId = url.split('vimeo.com/')[1]?.split('?')[0];
+                return videoId ? `https://player.vimeo.com/video/${{videoId}}?autoplay=1` : url;
+            }}
+            
+            if (type === 'Dropbox') {{
+                // Convert Dropbox share links to direct stream
+                return url.replace('www.dropbox.com', 'dl.dropboxusercontent.com').replace('?dl=0', '');
+            }}
+            
+            // For direct streams and others, use as-is
+            return url;
+        }}
+        
+        function playItemByIndex(itemIndex) {{
+            const playlistIndex = playOrder.indexOf(itemIndex);
+            if (playlistIndex !== -1) {{
+                loadItem(playlistIndex);
+            }}
+        }}
+        
+        function playNext() {{
+            let nextIndex = currentPlaylistIndex + 1;
+            
+            if (nextIndex >= playOrder.length) {{
+                if (repeat) {{
+                    nextIndex = 0;
+                }} else {{
+                    info.textContent = '✓ Playlist finished';
+                    return;
+                }}
+            }}
+            
+            loadItem(nextIndex);
+        }}
+        
+        function playPrevious() {{
+            let prevIndex = currentPlaylistIndex - 1;
+            
+            if (prevIndex < 0) {{
+                if (repeat) {{
+                    prevIndex = playOrder.length - 1;
+                }} else {{
+                    prevIndex = 0;
+                }}
+            }}
+            
+            loadItem(prevIndex);
+        }}
+        
+        function toggleShuffle() {{
+            shuffle = !shuffle;
+            const currentItemIndex = playOrder[currentPlaylistIndex];
+            generatePlayOrder();
+            currentPlaylistIndex = playOrder.indexOf(currentItemIndex);
+            if (currentPlaylistIndex === -1) currentPlaylistIndex = 0;
+            updateButtons();
+            renderPlaylist();
+        }}
+        
+        function toggleRepeat() {{
+            repeat = !repeat;
+            updateButtons();
+        }}
+        
+        function updateButtons() {{
+            shuffleBtn.className = shuffle ? 'btn active' : 'btn';
+            repeatBtn.className = repeat ? 'btn active' : 'btn';
+        }}
+        
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {{
+            if (e.key === 'ArrowLeft' && e.ctrlKey) {{
+                e.preventDefault();
+                playPrevious();
+            }} else if (e.key === 'ArrowRight' && e.ctrlKey) {{
+                e.preventDefault();
+                playNext();
+            }}
+        }});
+        
+        init();
+    </script>
+</body>
+</html>";
+        }
+
+        /// <summary>
+        /// Creates temporary HTML file for online playlist player
+        /// </summary>
+        public static string CreateTemporaryOnlinePlaylistPlayerFile(List<OnlineMediaItem> mediaItems, int currentIndex = 0, bool shuffle = false, bool repeat = false, string templatePath = null)
+        {
+            EnsureTempDirectoryExists();
+            var templateId = GetSafeTemplateIdentifier(templatePath);
+            var html = CreateOnlinePlaylistPlayerHtml(mediaItems, currentIndex, shuffle, repeat);
+            var tempPath = Path.Combine(TempPlaylistDirectory, $"webview_onlineplaylist_{templateId}_{Guid.NewGuid()}.html");
+            File.WriteAllText(tempPath, html);
+            return tempPath;
+        }
+
+        /// <summary>
         /// Cleans up unused temp files belonging to the current template
         /// </summary>
         public static void CleanupUnusedTempFiles(string currentTemplatePath, HashSet<string> activeUrls)
