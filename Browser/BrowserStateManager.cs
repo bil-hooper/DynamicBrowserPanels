@@ -29,6 +29,17 @@ namespace DynamicBrowserPanels
         private static bool _sourceBackupDirectoryChecked = false;
 
         /// <summary>
+        /// Shared JSON serializer options for consistent serialization
+        /// </summary>
+        private static readonly JsonSerializerOptions JsonOptions = new JsonSerializerOptions
+        {
+            WriteIndented = true,
+            DefaultIgnoreCondition = JsonIgnoreCondition.Never, // Include null values
+            IncludeFields = false,
+            PropertyNameCaseInsensitive = true
+        };
+
+        /// <summary>
         /// Gets or sets the file path for the current session (for command-line mode)
         /// </summary>
         public static string SessionFilePath { get; set; }
@@ -268,12 +279,7 @@ namespace DynamicBrowserPanels
                     Directory.CreateDirectory(directory);
                 }
 
-                var options = new JsonSerializerOptions
-                {
-                    WriteIndented = true
-                };
-
-                var json = JsonSerializer.Serialize(state, options);
+                var json = JsonSerializer.Serialize(state, JsonOptions);
  
                 File.WriteAllText(filePath, json);
 
@@ -320,7 +326,6 @@ namespace DynamicBrowserPanels
             catch (Exception ex)
             {
                 // Don't show error to user for backup failures, just log silently
-                System.Diagnostics.Debug.WriteLine($"Backup failed: {ex.Message}");
             }
         }
 
@@ -344,7 +349,6 @@ namespace DynamicBrowserPanels
             catch (Exception ex)
             {
                 // Don't show error to user for backup failures, just log silently
-                System.Diagnostics.Debug.WriteLine($"Single backup failed to {destinationFilePath}: {ex.Message}");
             }
         }
 
@@ -361,7 +365,17 @@ namespace DynamicBrowserPanels
                 }
 
                 var json = File.ReadAllText(filePath);
-                var state = JsonSerializer.Deserialize<BrowserState>(json);
+                var state = JsonSerializer.Deserialize<BrowserState>(json, JsonOptions);
+                
+                // DEBUG: Log what was deserialized
+                if (state?.RootPanel?.TabsState?.TabPlaylists != null)
+                {
+                    for (int i = 0; i < state.RootPanel.TabsState.TabPlaylists.Count; i++)
+                    {
+                        var pl = state.RootPanel.TabsState.TabPlaylists[i];
+                    }
+                }
+                
                 return state ?? CreateDefaultState();
             }
             catch (Exception ex)

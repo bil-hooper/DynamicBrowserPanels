@@ -32,7 +32,7 @@ namespace DynamicBrowserPanels
         { 
             ".avi", ".wmv", ".mov", ".mkv", ".flv", ".mpg", ".mpeg", ".3gp" 
         };
-
+       
         /// <summary>
         /// Checks if a file format is supported for playback
         /// </summary>
@@ -80,7 +80,7 @@ namespace DynamicBrowserPanels
         /// <summary>
         /// Creates an HTML page for playing media with custom controls
         /// </summary>
-        public static string CreateMediaPlayerHtml(string mediaFilePath, bool autoplay = false, bool loop = false)
+        public static string CreateMediaPlayerHtml(string mediaFilePath, bool autoplay = false, bool loop = false, bool hasPlaylist = false)
         {
             var mediaUrl = FilePathToUrl(mediaFilePath);
             var fileName = Path.GetFileName(mediaFilePath);
@@ -144,21 +144,200 @@ namespace DynamicBrowserPanels
             font-size: 16px;
             padding: 20px;
         }}
+        .playlist-controls {{
+            position: fixed;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(40, 40, 40, 0.95);
+            padding: 12px 20px;
+            border-radius: 8px;
+            display: {(hasPlaylist ? "flex" : "none")};
+            gap: 15px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+        }}
+        .playlist-btn {{
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            border: none;
+            padding: 10px 18px;
+            cursor: pointer;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+        }}
+        .playlist-btn:hover {{
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.5);
+        }}
+        .playlist-btn:active {{
+            transform: translateY(0);
+        }}
+        .playlist-btn:disabled {{
+            background: #555;
+            cursor: not-allowed;
+            opacity: 0.5;
+        }}
+        .autoplay-notice {{
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 152, 0, 0.95);
+            color: #000;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            display: none;
+            cursor: pointer;
+            z-index: 1000;
+            animation: pulse 2s infinite;
+        }}
+        .autoplay-notice:hover {{
+            background: rgba(255, 152, 0, 1);
+        }}
+        @keyframes pulse {{
+            0%, 100% {{ opacity: 1; }}
+            50% {{ opacity: 0.8; }}
+        }}
     </style>
 </head>
 <body>
+    <div class='autoplay-notice' id='autoplayNotice' onclick='tryPlayAgain()'>
+        ⚠️ Click here to start playback
+    </div>
+    
     <div class='container'>
         <div class='title'>{fileName}</div>
-        <{mediaTag} id='mediaPlayer' controls {autoplayAttr} {loopAttr}>
+        <{mediaTag} id='mediaPlayer' controls {autoplayAttr} {loopAttr} preload='auto'>
             <source src='{mediaUrl}' type='{mimeType}'>
             <p class='error'>Your browser does not support this media format.</p>
         </{mediaTag}>
         <div class='info' id='info'></div>
     </div>
     
+    <div class='playlist-controls'>
+        <button class='playlist-btn' id='prevBtn' onclick='previousTrack()'>⏮️ Previous</button>
+        <button class='playlist-btn' id='nextBtn' onclick='nextTrack()'>⏭️ Next</button>
+    </div>
+    
     <script>
         const player = document.getElementById('mediaPlayer');
         const info = document.getElementById('info');
+        const autoplayNotice = document.getElementById('autoplayNotice');
+        const hasPlaylist = {(hasPlaylist ? "true" : "false")};
+        const shouldAutoplay = {(autoplay ? "true" : "false")};
+        let autoplayAttempted = false;
+        
+        // Aggressive autoplay strategy
+        function attemptAutoplay() {{
+            if (autoplayAttempted) return;
+            autoplayAttempted = true;
+            
+            console.log('Attempting autoplay...');
+            
+            // Strategy: Try immediate play with promise handling
+            const playPromise = player.play();
+            
+            if (playPromise !== undefined) {{
+                playPromise
+                    .then(() => {{
+                        console.log('✓ Autoplay succeeded');
+                        autoplayNotice.style.display = 'none';
+                    }})
+                    .catch((error) => {{
+                        console.warn('✗ Autoplay blocked:', error.name, error.message);
+                        // Show user prompt to start playback
+                        autoplayNotice.style.display = 'block';
+                        
+                        // Auto-retry after a short delay (sometimes helps)
+                        setTimeout(() => {{
+                            player.play().catch(() => {{
+                                console.log('Retry also failed, waiting for user interaction');
+                            }});
+                        }}, 500);
+                    }});
+            }}
+        }}
+        
+        // Try to play again when user clicks the notice
+        function tryPlayAgain() {{
+            console.log('User clicked play notice');
+            player.play()
+                .then(() => {{
+                    console.log('✓ Manual play succeeded');
+                    autoplayNotice.style.display = 'none';
+                }})
+                .catch((error) => {{
+                    console.error('✗ Manual play failed:', error);
+                    alert('Unable to play media: ' + error.message);
+                }});
+        }}
+        
+        // Multiple autoplay triggers
+        if (shouldAutoplay) {{
+            console.log('Autoplay is enabled, setting up triggers...');
+            
+            // Trigger 1: Immediate attempt when DOM is ready
+            if (document.readyState === 'complete') {{
+                attemptAutoplay();
+            }} else {{
+                window.addEventListener('load', () => {{
+                    console.log('Window loaded, attempting autoplay');
+                    attemptAutoplay();
+                }});
+            }}
+            
+            // Trigger 2: On canplay event
+            player.addEventListener('canplay', () => {{
+                console.log('canplay event fired');
+                if (!autoplayAttempted) {{
+                    attemptAutoplay();
+                }}
+            }}, {{ once: true }});
+            
+            // Trigger 3: On loadeddata event
+            player.addEventListener('loadeddata', () => {{
+                console.log('loadeddata event fired');
+                if (!autoplayAttempted) {{
+                    attemptAutoplay();
+                }}
+            }}, {{ once: true }});
+            
+            // Trigger 4: Delayed fallback (100ms)
+            setTimeout(() => {{
+                if (!autoplayAttempted && player.paused) {{
+                    console.log('Delayed fallback trigger');
+                    attemptAutoplay();
+                }}
+            }}, 100);
+            
+            // Trigger 5: Extra delayed fallback (500ms)
+            setTimeout(() => {{
+                if (player.paused && player.readyState >= 2) {{
+                    console.log('Extra delayed fallback trigger');
+                    const promise = player.play();
+                    if (promise) {{
+                        promise.catch(() => {{
+                            console.log('Extra fallback also blocked');
+                            autoplayNotice.style.display = 'block';
+                        }});
+                    }}
+                }}
+            }}, 500);
+        }}
+        
+        // Click anywhere on the video/audio to dismiss notice and play
+        player.addEventListener('click', () => {{
+            if (player.paused) {{
+                player.play();
+            }}
+            autoplayNotice.style.display = 'none';
+        }});
         
         player.addEventListener('loadedmetadata', function() {{
             const duration = Math.floor(player.duration);
@@ -170,7 +349,64 @@ namespace DynamicBrowserPanels
         player.addEventListener('error', function(e) {{
             info.innerHTML = '<span class=""error"">Error loading media file</span>';
             console.error('Media error:', e);
+            autoplayNotice.style.display = 'none';
         }});
+        
+        // Auto-advance to next track when current one ends
+        player.addEventListener('ended', function() {{
+            console.log('Media ended');
+            if (hasPlaylist) {{
+                nextTrack();
+            }}
+        }});
+        
+        // Hide autoplay notice when playback starts
+        player.addEventListener('play', function() {{
+            console.log('Playback started');
+            autoplayNotice.style.display = 'none';
+        }});
+        
+        // Show notice again if playback is paused unexpectedly
+        player.addEventListener('pause', function() {{
+            console.log('Playback paused');
+        }});
+        
+        function previousTrack() {{
+            if (window.chrome && window.chrome.webview) {{
+                window.chrome.webview.postMessage({{ action: 'previous' }});
+            }}
+        }}
+        
+        function nextTrack() {{
+            if (window.chrome && window.chrome.webview) {{
+                window.chrome.webview.postMessage({{ action: 'next' }});
+            }}
+        }}
+        
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(e) {{
+            if (hasPlaylist) {{
+                if (e.ctrlKey && e.key === 'ArrowLeft') {{
+                    e.preventDefault();
+                    previousTrack();
+                }} else if (e.ctrlKey && e.key === 'ArrowRight') {{
+                    e.preventDefault();
+                    nextTrack();
+                }}
+            }}
+            
+            // Space bar to play/pause
+            if (e.code === 'Space' && e.target === document.body) {{
+                e.preventDefault();
+                if (player.paused) {{
+                    player.play();
+                }} else {{
+                    player.pause();
+                }}
+            }}
+        }});
+        
+        console.log('Media player initialized. Autoplay:', shouldAutoplay, 'Playlist:', hasPlaylist);
     </script>
 </body>
 </html>";
@@ -178,10 +414,18 @@ namespace DynamicBrowserPanels
 
         /// <summary>
         /// Saves the HTML player to a temporary file and returns the path
+        /// If a playlist is provided, creates the full playlist player view
         /// </summary>
-        public static string CreateTemporaryPlayerFile(string mediaFilePath, bool autoplay = false, bool loop = false)
+        public static string CreateTemporaryPlayerFile(string mediaFilePath, bool autoplay = false, bool loop = false, List<string> playlistFiles = null, int currentIndex = 0)
         {
-            var html = CreateMediaPlayerHtml(mediaFilePath, autoplay, loop);
+            // If we have a playlist with multiple files, use the full playlist player
+            if (playlistFiles != null && playlistFiles.Count > 1)
+            {
+                return CreateTemporaryPlaylistPlayerFile(playlistFiles, currentIndex, shuffle: false, repeat: false);
+            }
+            
+            // Otherwise use the simple single-track player
+            var html = CreateMediaPlayerHtml(mediaFilePath, autoplay, loop, hasPlaylist: playlistFiles != null && playlistFiles.Count > 0);
             var tempPath = Path.Combine(Path.GetTempPath(), $"webview_media_{Guid.NewGuid()}.html");
             File.WriteAllText(tempPath, html);
             return tempPath;
@@ -233,7 +477,8 @@ namespace DynamicBrowserPanels
                 if (uri.Scheme == "file")
                 {
                     var path = uri.LocalPath;
-                    return path.Contains("webview_media_") && path.EndsWith(".html");
+                    // Check for both single-track player (webview_media_) and playlist player (webview_playlist_)
+                    return (path.Contains("webview_media_") || path.Contains("webview_playlist_")) && path.EndsWith(".html");
                 }
             }
             catch
@@ -369,6 +614,225 @@ namespace DynamicBrowserPanels
         }
 
         /// <summary>
+        /// Opens a dialog to select M3U playlist or folder
+        /// </summary>
+        public static string OpenPlaylistDialog(out bool isFolder)
+        {
+            isFolder = false;
+
+            var result = MessageBox.Show(
+                "Load playlist from:\n\n" +
+                "YES - M3U Playlist File\n" +
+                "NO - Folder (all media files)\n" +
+                "CANCEL - Cancel",
+                "Open Playlist",
+                MessageBoxButtons.YesNoCancel,
+                MessageBoxIcon.Question
+            );
+
+            if (result == DialogResult.Yes)
+            {
+                // Load M3U file
+                using (var openFileDialog = new OpenFileDialog())
+                {
+                    openFileDialog.Title = "Select M3U Playlist";
+                    openFileDialog.Filter = "M3U Playlist (*.m3u;*.m3u8)|*.m3u;*.m3u8|All Files (*.*)|*.*";
+                    openFileDialog.FilterIndex = 1;
+                    openFileDialog.RestoreDirectory = true;
+
+                    if (openFileDialog.ShowDialog() == DialogResult.OK)
+                    {
+                        return openFileDialog.FileName;
+                    }
+                }
+            }
+            else if (result == DialogResult.No)
+            {
+                // Load from folder
+                using (var folderDialog = new FolderBrowserDialog())
+                {
+                    folderDialog.Description = "Select folder containing media files";
+                    folderDialog.ShowNewFolderButton = false;
+
+                    if (folderDialog.ShowDialog() == DialogResult.OK)
+                    {
+                        isFolder = true;
+                        return folderDialog.SelectedPath;
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Gets all supported media files from a folder
+        /// </summary>
+        public static List<string> GetMediaFilesFromFolder(string folderPath)
+        {
+            var mediaFiles = new List<string>();
+
+            if (!Directory.Exists(folderPath))
+                return mediaFiles;
+
+            try
+            {
+                var allExtensions = VideoFormats.Concat(AudioFormats).ToArray();
+                
+                foreach (var ext in allExtensions)
+                {
+                    mediaFiles.AddRange(Directory.GetFiles(folderPath, $"*{ext}", SearchOption.TopDirectoryOnly));
+                }
+
+                // Sort alphabetically
+                mediaFiles.Sort(StringComparer.OrdinalIgnoreCase);
+            }
+            catch
+            {
+                // Ignore errors
+            }
+
+            return mediaFiles;
+        }
+
+        /// <summary>
+        /// Loads playlist from M3U file
+        /// </summary>
+        public static List<string> LoadM3UPlaylist(string m3uFilePath)
+        {
+            var playlist = new List<string>();
+
+            if (!File.Exists(m3uFilePath))
+                return playlist;
+
+            try
+            {
+                string baseDir = Path.GetDirectoryName(m3uFilePath);
+                
+                foreach (var line in File.ReadAllLines(m3uFilePath))
+                {
+                    if (string.IsNullOrWhiteSpace(line) || line.StartsWith("#"))
+                        continue;
+
+                    string mediaPath = line.Trim();
+                    
+                    // Handle relative paths
+                    if (!Path.IsPathRooted(mediaPath))
+                    {
+                        mediaPath = Path.Combine(baseDir, mediaPath);
+                    }
+
+                    // Validate file exists and is supported
+                    if (File.Exists(mediaPath) && IsMediaSupported(mediaPath))
+                    {
+                        playlist.Add(mediaPath);
+                    }
+                }
+            }
+            catch
+            {
+                // Ignore errors
+            }
+
+            return playlist;
+        }
+
+        /// <summary>
+        /// Saves playlist to M3U file
+        /// </summary>
+        public static bool SaveM3UPlaylist(string m3uFilePath, List<string> mediaFiles, bool useRelativePaths = true)
+        {
+            try
+            {
+                for (int i = 0; i < mediaFiles.Count; i++)
+                {
+                    var file = mediaFiles[i];
+
+                    // If the file doesn't exist, show a warning and remove from playlist
+                    if (!File.Exists(file))
+                    {
+                        MessageBox.Show($"Media file not found: {file}\n\nIt may have been moved or deleted.", "File Not Found", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        mediaFiles.RemoveAt(i);
+                        i--; // Adjust index after removal
+                    }
+                    else if (!IsMediaSupported(file))
+                    {
+                        // If the file is not supported, suggest removal
+                        var result = MessageBox.Show(
+                            $"The file '{Path.GetFileName(file)}' is not in a supported format and may not play correctly.\n\n" +
+                            "Remove from playlist?",
+                            "Unsupported Format",
+                            MessageBoxButtons.YesNo,
+                            MessageBoxIcon.Question
+                        );
+
+                        if (result == DialogResult.Yes)
+                        {
+                            mediaFiles.RemoveAt(i);
+                            i--; // Adjust index after removal
+                        }
+                    }
+                }
+
+                if (mediaFiles.Count == 0)
+                {
+                    MessageBox.Show("The playlist is empty. No valid media files found.", "Empty Playlist", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return false;
+                }
+
+                var lines = new List<string> { "#EXTM3U" };
+                string baseDir = Path.GetDirectoryName(m3uFilePath);
+
+                foreach (var file in mediaFiles)
+                {
+                    string pathToWrite = file;
+
+                    if (useRelativePaths && !string.IsNullOrEmpty(baseDir))
+                    {
+                        // Try to make path relative
+                        try
+                        {
+                            pathToWrite = GetRelativePath(baseDir, file);
+                        }
+                        catch
+                        {
+                            // If relative path fails, use absolute
+                            pathToWrite = file;
+                        }
+                    }
+
+                    lines.Add(pathToWrite);
+                }
+
+                File.WriteAllLines(m3uFilePath, lines);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Gets relative path from one path to another
+        /// </summary>
+        private static string GetRelativePath(string fromPath, string toPath)
+        {
+            if (string.IsNullOrEmpty(fromPath)) return toPath;
+            if (string.IsNullOrEmpty(toPath)) return toPath;
+
+            Uri fromUri = new Uri(fromPath.EndsWith("\\") ? fromPath : fromPath + "\\");
+            Uri toUri = new Uri(toPath);
+
+            if (fromUri.Scheme != toUri.Scheme) return toPath;
+
+            Uri relativeUri = fromUri.MakeRelativeUri(toUri);
+            string relativePath = Uri.UnescapeDataString(relativeUri.ToString());
+
+            return relativePath.Replace('/', '\\');
+        }
+
+        /// <summary>
         /// Formats file size for display
         /// </summary>
         private static string FormatFileSize(long bytes)
@@ -425,6 +889,474 @@ namespace DynamicBrowserPanels
                    $"• Format: MP4\n" +
                    $"• Video Codec: H.264\n" +
                    $"• Audio Codec: AAC";
+        }
+
+        /// <summary>
+        /// Creates an HTML page for playing a full playlist with embedded UI
+        /// </summary>
+        public static string CreatePlaylistPlayerHtml(List<string> mediaFiles, int currentIndex = 0, bool shuffle = false, bool repeat = false)
+        {
+            if (mediaFiles == null || mediaFiles.Count == 0)
+                return CreateMediaPlayerHtml("", false, false, false);
+
+            // Build JavaScript array of media files
+            var filesJson = string.Join(",\n        ", mediaFiles.Select(f => 
+                $"{{ path: {System.Text.Json.JsonSerializer.Serialize(f)}, " +
+                $"name: {System.Text.Json.JsonSerializer.Serialize(Path.GetFileName(f))}, " +
+                $"url: {System.Text.Json.JsonSerializer.Serialize(FilePathToUrl(f))}, " +
+                $"type: '{GetMimeType(f)}', " +
+                $"isVideo: {(IsVideoFormat(f) ? "true" : "false")} }}"
+            ));
+
+            return $@"
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset='UTF-8'>
+    <title>Playlist Player</title>
+    <style>
+        * {{
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }}
+        body {{
+            background: linear-gradient(135deg, #1e1e2e 0%, #2d2d44 100%);
+            font-family: 'Segoe UI', Arial, sans-serif;
+            color: #fff;
+            height: 100vh;
+            display: flex;
+            overflow: hidden;
+        }}
+        .player-container {{
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            gap: 15px;
+        }}
+        .title-bar {{
+            font-size: 20px;
+            font-weight: 600;
+            color: #a8b3ff;
+            text-align: center;
+            padding: 10px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 8px;
+        }}
+        .media-wrapper {{
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+        }}
+        #mediaPlayer {{
+            max-width: 100%;
+            max-height: 100%;
+            width: auto;
+            height: auto;
+        }}
+        audio#mediaPlayer {{
+            width: 90%;
+        }}
+        .controls {{
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            align-items: center;
+            padding: 15px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 8px;
+            flex-wrap: wrap;
+        }}
+        .btn {{
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            border: none;
+            padding: 12px 20px;
+            cursor: pointer;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }}
+        .btn:hover {{
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }}
+        .btn:active {{
+            transform: translateY(0);
+        }}
+        .btn:disabled {{
+            background: #555;
+            cursor: not-allowed;
+            opacity: 0.5;
+            box-shadow: none;
+        }}
+        .btn.active {{
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }}
+        .info {{
+            text-align: center;
+            font-size: 14px;
+            color: #ccc;
+        }}
+        .playlist-sidebar {{
+            width: 350px;
+            background: rgba(0,0,0,0.4);
+            border-left: 1px solid rgba(255,255,255,0.1);
+            display: flex;
+            flex-direction: column;
+        }}
+        .playlist-header {{
+            padding: 15px;
+            background: rgba(0,0,0,0.5);
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            font-weight: 600;
+            font-size: 16px;
+        }}
+        .playlist {{
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+        }}
+        .playlist-item {{
+            padding: 12px;
+            margin-bottom: 8px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: 2px solid transparent;
+        }}
+        .playlist-item:hover {{
+            background: rgba(255,255,255,0.1);
+            transform: translateX(5px);
+        }}
+        .playlist-item.active {{
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-color: #a8b3ff;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.5);
+        }}
+        .playlist-item .name {{
+            font-weight: 500;
+            margin-bottom: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }}
+        .playlist-item .index {{
+            font-size: 11px;
+            color: #999;
+        }}
+        .playlist::-webkit-scrollbar {{
+            width: 8px;
+        }}
+        .playlist::-webkit-scrollbar-track {{
+            background: rgba(0,0,0,0.2);
+        }}
+        .playlist::-webkit-scrollbar-thumb {{
+            background: rgba(168, 179, 255, 0.3);
+            border-radius: 4px;
+        }}
+        .playlist::-webkit-scrollbar-thumb:hover {{
+            background: rgba(168, 179, 255, 0.5);
+        }}
+    </style>
+</head>
+<body>
+    <div class='player-container'>
+        <div class='title-bar' id='titleBar'>Playlist Player</div>
+        
+        <div class='media-wrapper'>
+            <video id='mediaPlayer' controls preload='auto' style='display:none;'></video>
+            <audio id='mediaPlayer_audio' controls preload='auto' style='display:none;'></audio>
+        </div>
+        
+        <div class='info' id='info'>Loading...</div>
+        
+        <div class='controls'>
+            <button class='btn' onclick='playPrevious()'>⏮️ Previous</button>
+            <button class='btn' onclick='togglePlayPause()' id='playPauseBtn'>▶️ Play</button>
+            <button class='btn' onclick='playNext()'>⏭️ Next</button>
+            <button class='btn' onclick='toggleShuffle()' id='shuffleBtn'>🔀 Shuffle</button>
+            <button class='btn' onclick='toggleRepeat()' id='repeatBtn'>🔁 Repeat</button>
+        </div>
+    </div>
+    
+    <div class='playlist-sidebar'>
+        <div class='playlist-header'>
+            Playlist ({mediaFiles.Count} tracks)
+        </div>
+        <div class='playlist' id='playlist'></div>
+    </div>
+    
+    <script>
+        // Playlist data
+        const mediaFiles = [
+        {filesJson}
+        ];
+        
+        let currentPlaylistIndex = {currentIndex}; // Index in the play order
+        let shuffle = {(shuffle ? "true" : "false")};
+        let repeat = {(repeat ? "true" : "false")};
+        let isPlaying = false;
+        let currentPlayer = null;
+        let playOrder = []; // Array of indices defining play order
+        
+        const videoPlayer = document.getElementById('mediaPlayer');
+        const audioPlayer = document.getElementById('mediaPlayer_audio');
+        const titleBar = document.getElementById('titleBar');
+        const info = document.getElementById('info');
+        const playlistEl = document.getElementById('playlist');
+        const playPauseBtn = document.getElementById('playPauseBtn');
+        const shuffleBtn = document.getElementById('shuffleBtn');
+        const repeatBtn = document.getElementById('repeatBtn');
+        
+        // Initialize
+        function init() {{
+            generatePlayOrder();
+            renderPlaylist();
+            updateButtons();
+            loadTrack(currentPlaylistIndex, true); // Autoplay immediately
+        }}
+        
+        // Generate play order (normal or shuffled)
+        function generatePlayOrder() {{
+            playOrder = [];
+            for (let i = 0; i < mediaFiles.length; i++) {{
+                playOrder.push(i);
+            }}
+            
+            if (shuffle) {{
+                // Fisher-Yates shuffle algorithm
+                for (let i = playOrder.length - 1; i > 0; i--) {{
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [playOrder[i], playOrder[j]] = [playOrder[j], playOrder[i]];
+                }}
+                console.log('Shuffled play order:', playOrder);
+            }} else {{
+                console.log('Sequential play order');
+            }}
+        }}
+        
+        function renderPlaylist() {{
+            playlistEl.innerHTML = '';
+            const currentFileIndex = playOrder[currentPlaylistIndex];
+            
+            mediaFiles.forEach((file, index) => {{
+                const item = document.createElement('div');
+                item.className = 'playlist-item' + (index === currentFileIndex ? ' active' : '');
+                item.innerHTML = `
+                    <div class='name'>${{file.isVideo ? '🎬' : '🎵'}} ${{file.name}}</div>
+                    <div class='index'>Track ${{index + 1}} of ${{mediaFiles.length}}</div>
+                `;
+                item.onclick = () => playTrackByFileIndex(index);
+                playlistEl.appendChild(item);
+            }});
+            
+            // Scroll active item into view
+            const activeItem = playlistEl.querySelector('.active');
+            if (activeItem) {{
+                activeItem.scrollIntoView({{ block: 'center', behavior: 'smooth' }});
+            }}
+        }}
+        
+        function loadTrack(playlistIndex, autoplay = false) {{
+            if (playlistIndex < 0 || playlistIndex >= playOrder.length) return;
+            
+            currentPlaylistIndex = playlistIndex;
+            const fileIndex = playOrder[currentPlaylistIndex];
+            const file = mediaFiles[fileIndex];
+            
+            console.log(`Loading track: playlist index ${{playlistIndex}}, file index ${{fileIndex}}, name: ${{file.name}}`);
+            
+            // Hide both players
+            videoPlayer.style.display = 'none';
+            audioPlayer.style.display = 'none';
+            
+            // Select appropriate player
+            currentPlayer = file.isVideo ? videoPlayer : audioPlayer;
+            currentPlayer.style.display = 'block';
+            
+            // Set source
+            currentPlayer.src = file.url;
+            currentPlayer.load();
+            
+            // Update UI
+            titleBar.textContent = file.name;
+            info.textContent = `Track ${{fileIndex + 1}} of ${{mediaFiles.length}} • Position ${{playlistIndex + 1}} in queue`;
+            renderPlaylist();
+            
+            // Setup events
+            currentPlayer.onloadedmetadata = () => {{
+                const duration = Math.floor(currentPlayer.duration);
+                const minutes = Math.floor(duration / 60);
+                const seconds = duration % 60;
+                info.textContent = `Track ${{fileIndex + 1}} of ${{mediaFiles.length}} • Duration: ${{minutes}}:${{seconds.toString().padStart(2, '0')}}`;
+            }};
+            
+            currentPlayer.onended = () => {{
+                playNext();
+            }};
+            
+            currentPlayer.onplay = () => {{
+                isPlaying = true;
+                playPauseBtn.innerHTML = '⏸️ Pause';
+            }};
+            
+            currentPlayer.onpause = () => {{
+                isPlaying = false;
+                playPauseBtn.innerHTML = '▶️ Play';
+            }};
+            
+            currentPlayer.onerror = () => {{
+                info.textContent = '❌ Error loading media';
+                playNext(); // Auto-skip on error
+            }};
+            
+            // Autoplay if requested
+            if (autoplay) {{
+                currentPlayer.play().catch(err => {{
+                    console.error('Autoplay failed:', err);
+                    info.textContent = 'Click Play to start';
+                }});
+            }}
+        }}
+        
+        function playTrackByFileIndex(fileIndex) {{
+            // Find this file's position in the play order
+            const playlistIndex = playOrder.indexOf(fileIndex);
+            if (playlistIndex !== -1) {{
+                loadTrack(playlistIndex, true);
+            }}
+        }}
+        
+        function playNext() {{
+            let nextIndex = currentPlaylistIndex + 1;
+            
+            if (nextIndex >= playOrder.length) {{
+                if (repeat) {{
+                    nextIndex = 0;
+                    console.log('Playlist finished, repeating from start');
+                }} else {{
+                    currentPlayer?.pause();
+                    info.textContent = '✓ Playlist finished';
+                    console.log('Playlist finished');
+                    return;
+                }}
+            }}
+            
+            loadTrack(nextIndex, true);
+        }}
+        
+        function playPrevious() {{
+            let prevIndex = currentPlaylistIndex - 1;
+            
+            if (prevIndex < 0) {{
+                if (repeat) {{
+                    prevIndex = playOrder.length - 1;
+                    console.log('At start, jumping to end (repeat enabled)');
+                }} else {{
+                    prevIndex = 0;
+                }}
+            }}
+            
+            loadTrack(prevIndex, true);
+        }}
+        
+        function togglePlayPause() {{
+            if (!currentPlayer) {{
+                loadTrack(currentPlaylistIndex, true);
+                return;
+            }}
+            
+            if (currentPlayer.paused) {{
+                currentPlayer.play();
+            }} else {{
+                currentPlayer.pause();
+            }}
+        }}
+        
+        function toggleShuffle() {{
+            shuffle = !shuffle;
+            console.log('Shuffle toggled:', shuffle);
+            
+            // Remember current file
+            const currentFileIndex = playOrder[currentPlaylistIndex];
+            
+            // Regenerate play order
+            generatePlayOrder();
+            
+            // Find where the current file is in the new order
+            currentPlaylistIndex = playOrder.indexOf(currentFileIndex);
+            if (currentPlaylistIndex === -1) {{
+                currentPlaylistIndex = 0; // Fallback
+            }}
+            
+            updateButtons();
+            renderPlaylist();
+        }}
+        
+        function toggleRepeat() {{
+            repeat = !repeat;
+            console.log('Repeat toggled:', repeat);
+            updateButtons();
+        }}
+        
+        function updateButtons() {{
+            shuffleBtn.className = shuffle ? 'btn active' : 'btn';
+            repeatBtn.className = repeat ? 'btn active' : 'btn';
+        }}
+        
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {{
+            if (e.code === 'Space' && e.target === document.body) {{
+                e.preventDefault();
+                togglePlayPause();
+            }} else if (e.key === 'ArrowLeft' && e.ctrlKey) {{
+                e.preventDefault();
+                playPrevious();
+            }} else if (e.key === 'ArrowRight' && e.ctrlKey) {{
+                e.preventDefault();
+                playNext();
+            }}
+        }});
+        
+        // Notify C# of state changes
+        function notifyStateChange() {{
+            if (window.chrome && window.chrome.webview) {{
+                window.chrome.webview.postMessage({{
+                    action: 'stateChanged',
+                    currentIndex: playOrder[currentPlaylistIndex],
+                    shuffle: shuffle,
+                    repeat: repeat,
+                    isPlaying: isPlaying
+                }});
+            }}
+        }}
+        
+        // Initialize on load
+        init();
+    </script>
+</body>
+</html>";
+        }
+
+        /// <summary>
+        /// Creates temporary HTML file for playlist player
+        /// </summary>
+        public static string CreateTemporaryPlaylistPlayerFile(List<string> mediaFiles, int currentIndex = 0, bool shuffle = false, bool repeat = false)
+        {
+            var html = CreatePlaylistPlayerHtml(mediaFiles, currentIndex, shuffle, repeat);
+            var tempPath = Path.Combine(Path.GetTempPath(), $"webview_playlist_{Guid.NewGuid()}.html");
+            File.WriteAllText(tempPath, html);
+            return tempPath;
         }
     }
 }
