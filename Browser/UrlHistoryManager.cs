@@ -17,6 +17,10 @@ namespace DynamicBrowserPanels
             "History"
         );
 
+        // Cache to avoid re-parsing the same URL
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _filenameCache 
+            = new System.Collections.Concurrent.ConcurrentDictionary<string, string>();
+
         /// <summary>
         /// Creates a URL shortcut file for the given URL (fire-and-forget)
         /// </summary>
@@ -61,27 +65,37 @@ namespace DynamicBrowserPanels
                 // Build URL without fragment
                 string urlWithoutFragment = uri.GetLeftPart(UriPartial.Query);
 
-                // Generate filename from URL
-                string filename = GenerateFilenameFromUrl(urlWithoutFragment);
-
-                if (!String.IsNullOrWhiteSpace(filename))
+                // Check cache first
+                if (!_filenameCache.TryGetValue(urlWithoutFragment, out string filename))
                 {
-                    // Ensure History folder exists
-                    await Task.Run(() =>
-                    {
-                        if (!Directory.Exists(HistoryFolderPath))
-                        {
-                            Directory.CreateDirectory(HistoryFolderPath);
-                        }
-                    });
+                    // Generate filename from URL
+                    filename = GenerateFilenameFromUrl(urlWithoutFragment);
+                    
+                    if (string.IsNullOrWhiteSpace(filename))
+                        return;
+                    
+                    // Cache it
+                    _filenameCache.TryAdd(urlWithoutFragment, filename);
+                }
 
-                    string filePath = Path.Combine(HistoryFolderPath, filename + ".url");
+                // Check if file already exists (fast check before directory creation)
+                string filePath = Path.Combine(HistoryFolderPath, filename + ".url");
+                if (File.Exists(filePath))
+                    return; // Already exists, skip
 
-                    // Only create if it doesn't already exist
-                    if (!File.Exists(filePath))
+                // Ensure History folder exists
+                await Task.Run(() =>
+                {
+                    if (!Directory.Exists(HistoryFolderPath))
                     {
-                        await CreateUrlShortcutAsync(filePath, urlWithoutFragment);
+                        Directory.CreateDirectory(HistoryFolderPath);
                     }
+                });
+
+                // Double-check after directory creation (race condition protection)
+                if (!File.Exists(filePath))
+                {
+                    await CreateUrlShortcutAsync(filePath, urlWithoutFragment);
                 }
             }
             catch

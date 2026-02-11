@@ -412,7 +412,7 @@ namespace DynamicBrowserPanels
 
             try
             {
-                bool success = await DropboxSyncManager.TestConnectionAsync(accessTokenTextBox.Text.Trim());
+                bool success = await DropboxSyncManagerStatic.TestConnectionAsync(accessTokenTextBox.Text.Trim());
                 
                 if (success)
                 {
@@ -454,7 +454,7 @@ namespace DynamicBrowserPanels
 
             try
             {
-                bool success = await DropboxSyncManager.RevokeAccessAsync(accessTokenTextBox.Text.Trim());
+                bool success = await DropboxSyncManagerStatic.RevokeAccessAsync(accessTokenTextBox.Text.Trim());
                 
                 if (success)
                 {
@@ -483,27 +483,27 @@ namespace DynamicBrowserPanels
         private async void SyncNowButton_Click(object sender, EventArgs e)
         {
             // Manual sync - sync everything (Full mode)
-            await PerformSyncAsync(DropboxSyncManager.SyncDirection.Both, DropboxSyncManager.SyncMode.Full);
+            await PerformSyncAsync(DropboxSyncManagerStatic.SyncDirection.Both, DropboxSyncManagerStatic.SyncMode.Full);
         }
 
         private async void PushButton_Click(object sender, EventArgs e)
         {
             // Manual push - push everything (Full mode)
-            await PerformSyncAsync(DropboxSyncManager.SyncDirection.PushOnly, DropboxSyncManager.SyncMode.Full);
+            await PerformSyncAsync(DropboxSyncManagerStatic.SyncDirection.PushOnly, DropboxSyncManagerStatic.SyncMode.Full);
         }
 
         private async void PullButton_Click(object sender, EventArgs e)
         {
             // Manual pull - pull everything (Full mode)
-            await PerformSyncAsync(DropboxSyncManager.SyncDirection.PullOnly, DropboxSyncManager.SyncMode.Full);
+            await PerformSyncAsync(DropboxSyncManagerStatic.SyncDirection.PullOnly, DropboxSyncManagerStatic.SyncMode.Full);
         }
 
-        private async Task PerformSyncAsync(DropboxSyncManager.SyncDirection direction, DropboxSyncManager.SyncMode mode)
+        private async Task PerformSyncAsync(DropboxSyncManagerStatic.SyncDirection direction, DropboxSyncManagerStatic.SyncMode mode)
         {
             string action = direction switch
             {
-                DropboxSyncManager.SyncDirection.PushOnly => "Pushing to Dropbox",
-                DropboxSyncManager.SyncDirection.PullOnly => "Pulling from Dropbox",
+                DropboxSyncManagerStatic.SyncDirection.PushOnly => "Pushing to Dropbox",
+                DropboxSyncManagerStatic.SyncDirection.PullOnly => "Pulling from Dropbox",
                 _ => "Synchronizing"
             };
 
@@ -536,7 +536,12 @@ namespace DynamicBrowserPanels
                     AppSecret = appSecretTextBox.Text.Trim()
                 };
 
-                var result = await DropboxSyncManager.SynchronizeAsync(tempSettings, progress, direction, mode);
+                var result = await DropboxSyncManagerStatic.SynchronizeAsync(
+                    tempSettings,
+                    progress,
+                    direction: direction,
+                    mode: mode
+                );
 
                 if (result.Success)
                 {
@@ -544,6 +549,22 @@ namespace DynamicBrowserPanels
                     statusLabel.ForeColor = Color.Green;
                     lastSyncLabel.Text = $"Last sync: {result.SyncTime:yyyy-MM-dd HH:mm:ss}";
                     settings.LastSyncTime = result.SyncTime;
+                    
+                    // Update push/pull times based on direction
+                    if (direction == DropboxSyncManagerStatic.SyncDirection.PushOnly || 
+                        direction == DropboxSyncManagerStatic.SyncDirection.Both)
+                    {
+                        settings.LastPushTime = result.SyncTime;
+                    }
+                    
+                    if (direction == DropboxSyncManagerStatic.SyncDirection.PullOnly || 
+                        direction == DropboxSyncManagerStatic.SyncDirection.Both)
+                    {
+                        settings.LastPullTime = result.SyncTime;
+                    }
+                    
+                    // Save the updated settings
+                    AppConfiguration.DropboxSyncSettings = settings;
                 }
                 else
                 {

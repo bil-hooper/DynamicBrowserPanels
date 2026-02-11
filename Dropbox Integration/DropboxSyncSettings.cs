@@ -53,9 +53,19 @@ namespace DynamicBrowserPanels
         public bool SyncHistory { get; set; } = false;
 
         /// <summary>
-        /// Last successful sync timestamp
+        /// Last successful sync timestamp (for display purposes)
         /// </summary>
         public DateTime? LastSyncTime { get; set; } = null;
+
+        /// <summary>
+        /// Last successful push (upload) timestamp
+        /// </summary>
+        public DateTime? LastPushTime { get; set; } = null;
+
+        /// <summary>
+        /// Last successful pull (download) timestamp
+        /// </summary>
+        public DateTime? LastPullTime { get; set; } = null;
 
         /// <summary>
         /// Whether the user is authenticated with Dropbox

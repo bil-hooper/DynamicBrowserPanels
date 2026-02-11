@@ -1,88 +1,120 @@
 using System;
 using System.Threading.Tasks;
+using System.IO;
+using System.Collections.Generic;
 
 namespace DynamicBrowserPanels
 {
     /// <summary>
-    /// Handles automatic Dropbox synchronization at startup and shutdown
+    /// Handles automatic Dropbox synchronization on startup and shutdown
     /// </summary>
     public static class DropboxAutoSync
     {
         /// <summary>
-        /// Performs a sync at application startup (pull remote changes)
+        /// Syncs on startup - prioritizes .frm template files for immediate use
         /// </summary>
-        public static async Task<SyncResult> SyncOnStartupAsync()
+        public static async Task SyncOnStartupAsync()
         {
             var settings = AppConfiguration.DropboxSyncSettings;
 
+            // Only sync if enabled and authenticated
             if (!settings.SyncEnabled || !settings.IsAuthenticated)
             {
-                return new SyncResult { Success = false, Message = "Sync disabled or not authenticated" };
+                return;
             }
 
             try
             {
-                // Use incremental sync - only pull files changed since last sync
-                var result = await DropboxSyncManager.SynchronizeAsync(
-                    settings,
-                    direction: DropboxSyncManager.SyncDirection.PullOnly,
-                    mode: DropboxSyncManager.SyncMode.Incremental
-                );
-                
-                if (result.Success)
+                using (var manager = new DropboxSyncManager(settings.AccessToken))
                 {
-                    settings.LastSyncTime = result.SyncTime;
+                    // PHASE 1: Sync .frm template files FIRST (high priority)
+                    if (settings.SyncTemplates)
+                    {
+                        var templatesDir = Path.Combine(
+                            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                            "DynamicBrowserPanels",
+                            "Templates"
+                        );
+
+                        // Pull templates first (download any updates from Dropbox)
+                        await manager.PullFolderAsync("/Templates", templatesDir, "*.frm");
+                    }
+
+                    // PHASE 2: Sync other files in background (lower priority)
+                    var baseDir = Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                        "DynamicBrowserPanels"
+                    );
+
+                    var tasks = new List<Task>();
+
+                    // Sync notes
+                    if (settings.SyncNotes)
+                    {
+                        var notesDir = Path.Combine(baseDir, "Notes");
+                        tasks.Add(manager.SyncFolderAsync("/Notes", notesDir));
+                    }
+
+                    // Sync playlists
+                    if (settings.SyncPlaylists)
+                    {
+                        var playlistsDir = Path.Combine(baseDir, "Playlists");
+                        tasks.Add(manager.SyncFolderAsync("/Playlists", playlistsDir));
+                    }
+
+                    // Sync history
+                    if (settings.SyncHistory)
+                    {
+                        var historyDir = Path.Combine(baseDir, "History");
+                        tasks.Add(manager.SyncFolderAsync("/History", historyDir));
+                    }
+
+                    // Wait for all background syncs to complete
+                    await Task.WhenAll(tasks);
+
+                    // Update last sync time
+                    settings.LastSyncTime = DateTime.UtcNow;
                     AppConfiguration.DropboxSyncSettings = settings;
                 }
-
-                return result;
             }
-            catch (Exception ex)
+            catch
             {
-                return new SyncResult
-                {
-                    Success = false,
-                    Message = $"Startup sync failed: {ex.Message}"
-                };
+                // Silent fail on startup
             }
         }
 
         /// <summary>
-        /// Performs a sync before application shutdown (push local changes)
+        /// Performs sync on application shutdown (Push only, Incremental)
         /// </summary>
-        public static async Task<SyncResult> SyncOnShutdownAsync()
+        public static async Task SyncOnShutdownAsync()
         {
             var settings = AppConfiguration.DropboxSyncSettings;
 
             if (!settings.SyncEnabled || !settings.IsAuthenticated)
-            {
-                return new SyncResult { Success = false, Message = "Sync disabled or not authenticated" };
-            }
+                return;
 
             try
             {
-                // Use incremental sync - only push files changed since last sync
-                var result = await DropboxSyncManager.SynchronizeAsync(
+                // On shutdown: Push to Dropbox only (incremental)
+                // This uploads any changes made during this session
+                var result = await DropboxSyncManagerStatic.SynchronizeAsync(
                     settings,
-                    direction: DropboxSyncManager.SyncDirection.PushOnly,
-                    mode: DropboxSyncManager.SyncMode.Incremental
+                    progress: null,
+                    direction: DropboxSyncManagerStatic.SyncDirection.PushOnly,
+                    mode: DropboxSyncManagerStatic.SyncMode.Incremental
                 );
-                
-                if (result.Success)
+
+                if (result.Success && result.SyncTime.HasValue)
                 {
-                    settings.LastSyncTime = result.SyncTime;
+                    // Update the last push time
+                    settings.LastPushTime = result.SyncTime.Value;
+                    settings.LastSyncTime = result.SyncTime.Value;
                     AppConfiguration.DropboxSyncSettings = settings;
                 }
-
-                return result;
             }
-            catch (Exception ex)
+            catch
             {
-                return new SyncResult
-                {
-                    Success = false,
-                    Message = $"Shutdown sync failed: {ex.Message}"
-                };
+                // Silently fail - don't block application shutdown
             }
         }
     }

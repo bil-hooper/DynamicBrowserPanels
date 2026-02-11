@@ -10,9 +10,139 @@ using Dropbox.Api.Files;
 namespace DynamicBrowserPanels
 {
     /// <summary>
-    /// Manages synchronization with Dropbox
+    /// Instance-based Dropbox manager for individual operations
     /// </summary>
-    public static class DropboxSyncManager
+    public class DropboxSyncManager : IDisposable
+    {
+        private readonly DropboxClient _client;
+
+        public DropboxSyncManager(string accessToken)
+        {
+            _client = new DropboxClient(accessToken);
+        }
+
+        /// <summary>
+        /// Pulls (downloads) files from Dropbox to local folder, optionally filtering by pattern
+        /// </summary>
+        public async Task PullFolderAsync(string dropboxPath, string localPath, string filePattern = "*")
+        {
+            if (_client == null)
+            {
+                throw new InvalidOperationException("Not authenticated.");
+            }
+
+            // Ensure local directory exists
+            Directory.CreateDirectory(localPath);
+
+            try
+            {
+                // List files in Dropbox folder
+                var listResult = await _client.Files.ListFolderAsync(dropboxPath);
+
+                do
+                {
+                    foreach (var entry in listResult.Entries)
+                    {
+                        if (entry.IsFile)
+                        {
+                            var fileMetadata = entry.AsFile;
+                            var fileName = Path.GetFileName(entry.Name);
+
+                            // Check if file matches pattern
+                            if (!MatchesPattern(fileName, filePattern))
+                            {
+                                continue;
+                            }
+
+                            var localFilePath = Path.Combine(localPath, fileName);
+
+                            // Check if file exists locally and compare timestamps
+                            bool shouldDownload = true;
+                            if (File.Exists(localFilePath))
+                            {
+                                var localModified = File.GetLastWriteTimeUtc(localFilePath);
+                                var dropboxModified = fileMetadata.ServerModified;
+
+                                // Only download if Dropbox version is newer
+                                shouldDownload = dropboxModified > localModified;
+                            }
+
+                            if (shouldDownload)
+                            {
+                                // Download file from Dropbox
+                                using (var response = await _client.Files.DownloadAsync(entry.PathDisplay))
+                                {
+                                    var content = await response.GetContentAsByteArrayAsync();
+                                    await File.WriteAllBytesAsync(localFilePath, content);
+
+                                    // Set local file timestamp to match Dropbox
+                                    File.SetLastWriteTimeUtc(localFilePath, fileMetadata.ServerModified);
+                                }
+                            }
+                        }
+                    }
+
+                    // Handle pagination if there are more files
+                    if (listResult.HasMore)
+                    {
+                        listResult = await _client.Files.ListFolderContinueAsync(listResult.Cursor);
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+                while (true);
+            }
+            catch (ApiException<Dropbox.Api.Files.ListFolderError> ex)
+            {
+                // Handle case where folder doesn't exist on Dropbox
+                if (ex.ErrorResponse.IsPath)
+                {
+                    // Folder doesn't exist on Dropbox yet - this is okay, just return
+                    return;
+                }
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Syncs a local folder with Dropbox
+        /// </summary>
+        public async Task SyncFolderAsync(string dropboxPath, string localPath)
+        {
+            await DropboxSyncManagerStatic.SyncFolderAsync(_client, localPath, dropboxPath);
+        }
+
+        /// <summary>
+        /// Simple wildcard pattern matching for file filtering
+        /// </summary>
+        private bool MatchesPattern(string fileName, string pattern)
+        {
+            if (string.IsNullOrEmpty(pattern) || pattern == "*")
+                return true;
+
+            // Handle *.extension pattern
+            if (pattern.StartsWith("*."))
+            {
+                var extension = pattern.Substring(1); // Get ".frm" from "*.frm"
+                return fileName.EndsWith(extension, StringComparison.OrdinalIgnoreCase);
+            }
+
+            // Handle exact match
+            return fileName.Equals(pattern, StringComparison.OrdinalIgnoreCase);
+        }
+
+        public void Dispose()
+        {
+            _client?.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// Static methods for Dropbox synchronization
+    /// </summary>
+    public static class DropboxSyncManagerStatic
     {
         // When using "App folder" access, the root is automatically /Apps/[AppName]/
         // We don't need to specify it - Dropbox SDK handles this automatically
@@ -75,8 +205,18 @@ namespace DynamicBrowserPanels
             {
                 using (var dbx = new DropboxClient(settings.AccessToken))
                 {
-                    // Determine the cutoff date for incremental sync
-                    DateTime? sinceDate = mode == SyncMode.Incremental ? settings.LastSyncTime : null;
+                    // Determine the cutoff date for incremental sync based on direction
+                    DateTime? sinceDate = null;
+                    
+                    if (mode == SyncMode.Incremental)
+                    {
+                        sinceDate = direction switch
+                        {
+                            SyncDirection.PushOnly => settings.LastPushTime,
+                            SyncDirection.PullOnly => settings.LastPullTime,
+                            _ => settings.LastSyncTime // For Both, use the older of the two
+                        };
+                    }
 
                     // Sync each enabled folder
                     if (settings.SyncNotes)
@@ -163,7 +303,7 @@ namespace DynamicBrowserPanels
         /// <summary>
         /// Syncs a local folder with Dropbox based on sync direction
         /// </summary>
-        private static async Task SyncFolderAsync(
+        public static async Task SyncFolderAsync(
             DropboxClient dbx,
             string localFolder,
             string dropboxFolder,

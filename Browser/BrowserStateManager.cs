@@ -4,6 +4,7 @@ using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Windows.Forms;
+using System.Threading.Tasks;
 
 namespace DynamicBrowserPanels
 {
@@ -107,6 +108,36 @@ namespace DynamicBrowserPanels
                 
                 // DO NOT clean up temp files for Current Layout
                 // Only clean up when saving templates
+            }
+        }
+
+        /// <summary>
+        /// Saves the current layout asynchronously
+        /// </summary>
+        public static async Task SaveCurrentLayoutAsync(BrowserState state)
+        {
+            if (IsCommandLineMode)
+            {
+                // In command-line mode, do NOT save to the session file
+                return;
+            }
+
+            try
+            {
+                var directory = Path.GetDirectoryName(CurrentLayoutPath);
+                if (!Directory.Exists(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                }
+
+                var json = JsonSerializer.Serialize(state, JsonOptions);
+                
+                // Use async file write
+                await File.WriteAllTextAsync(CurrentLayoutPath, json);
+            }
+            catch
+            {
+                // Silently fail
             }
         }
 
@@ -246,6 +277,41 @@ namespace DynamicBrowserPanels
                 // Normal mode, load from Current Layout.frm
                 return LoadState(CurrentLayoutPath);
             }
+        }
+
+        /// <summary>
+        /// Loads the current layout asynchronously
+        /// </summary>
+        public static async Task<BrowserState> LoadCurrentLayoutAsync()
+        {
+            try
+            {
+                string filePath = IsCommandLineMode ? SessionFilePath : CurrentLayoutPath;
+
+                if (File.Exists(filePath))
+                {
+                    // Use async file read
+                    string json = await File.ReadAllTextAsync(filePath);
+                    var state = JsonSerializer.Deserialize<BrowserState>(json, JsonOptions);
+                    
+                    // DEBUG: Log what was deserialized
+                    if (state?.RootPanel?.TabsState?.TabPlaylists != null)
+                    {
+                        for (int i = 0; i < state.RootPanel.TabsState.TabPlaylists.Count; i++)
+                        {
+                            var pl = state.RootPanel.TabsState.TabPlaylists[i];
+                        }
+                    }
+                    
+                    return state ?? CreateDefaultState();
+                }
+            }
+            catch
+            {
+                // If loading fails, return default state
+            }
+
+            return CreateDefaultState();
         }
 
         /// <summary>

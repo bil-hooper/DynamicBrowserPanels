@@ -1,11 +1,13 @@
 using System;
 using System.IO;
 using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace DynamicBrowserPanels
 {
     /// <summary>
-    /// Manages application configuration settings
+    /// Manages application configuration settings with batched saves
     /// </summary>
     public static class AppConfiguration
     {
@@ -19,6 +21,57 @@ namespace DynamicBrowserPanels
 
         private static AppSettings _settings;
         private static readonly object _lock = new object();
+        private static Timer _saveTimer;
+        private static bool _isDirty = false;
+        private const int SAVE_DELAY_MS = 1000; // Batch saves within 1 second
+
+        /// <summary>
+        /// Marks settings as dirty and schedules a save
+        /// </summary>
+        private static void MarkDirtyAndScheduleSave()
+        {
+            lock (_lock)
+            {
+                _isDirty = true;
+                
+                // Reset timer - this batches multiple changes
+                _saveTimer?.Dispose();
+                _saveTimer = new Timer(_ => SaveSettingsIfDirty(), null, SAVE_DELAY_MS, Timeout.Infinite);
+            }
+        }
+
+        /// <summary>
+        /// Saves settings only if dirty
+        /// </summary>
+        private static void SaveSettingsIfDirty()
+        {
+            lock (_lock)
+            {
+                if (_isDirty)
+                {
+                    SaveSettings();
+                    _isDirty = false;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Forces immediate save (call before app closes)
+        /// </summary>
+        public static void FlushPendingSaves()
+        {
+            lock (_lock)
+            {
+                _saveTimer?.Dispose();
+                _saveTimer = null;
+                
+                if (_isDirty)
+                {
+                    SaveSettings();
+                    _isDirty = false;
+                }
+            }
+        }
 
         /// <summary>
         /// Gets or sets the last custom timer duration
@@ -38,8 +91,11 @@ namespace DynamicBrowserPanels
                 lock (_lock)
                 {
                     EnsureSettingsLoaded();
-                    _settings.LastCustomTimerDuration = value;
-                    SaveSettings();
+                    if (_settings.LastCustomTimerDuration != value)
+                    {
+                        _settings.LastCustomTimerDuration = value;
+                        MarkDirtyAndScheduleSave();
+                    }
                 }
             }
         }
@@ -63,7 +119,7 @@ namespace DynamicBrowserPanels
                 {
                     EnsureSettingsLoaded();
                     _settings.DropboxSyncSettings = value;
-                    SaveSettings();
+                    MarkDirtyAndScheduleSave();
                 }
             }
         }
@@ -86,8 +142,11 @@ namespace DynamicBrowserPanels
                 lock (_lock)
                 {
                     EnsureSettingsLoaded();
-                    _settings.LastMediaDirectory = value;
-                    SaveSettings();
+                    if (_settings.LastMediaDirectory != value)
+                    {
+                        _settings.LastMediaDirectory = value;
+                        MarkDirtyAndScheduleSave();
+                    }
                 }
             }
         }
@@ -110,8 +169,11 @@ namespace DynamicBrowserPanels
                 lock (_lock)
                 {
                     EnsureSettingsLoaded();
-                    _settings.LastLoadedTemplatePath = value;
-                    SaveSettings();
+                    if (_settings.LastLoadedTemplatePath != value)
+                    {
+                        _settings.LastLoadedTemplatePath = value;
+                        MarkDirtyAndScheduleSave();
+                    }
                 }
             }
         }
@@ -134,8 +196,11 @@ namespace DynamicBrowserPanels
                 lock (_lock)
                 {
                     EnsureSettingsLoaded();
-                    _settings.PromptRestoreLastTemplate = value;
-                    SaveSettings();
+                    if (_settings.PromptRestoreLastTemplate != value)
+                    {
+                        _settings.PromptRestoreLastTemplate = value;
+                        MarkDirtyAndScheduleSave();
+                    }
                 }
             }
         }

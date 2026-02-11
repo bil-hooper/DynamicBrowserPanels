@@ -15,6 +15,7 @@ namespace DynamicBrowserPanels
         private Panel rootPanel;
         private string _lastLoadedFileName; // Store it here at the form level
         private TimerManager _timerManager;
+        private LoadingOverlay _loadingOverlay;
 
         public MainBrowserForm()
         {
@@ -32,6 +33,9 @@ namespace DynamicBrowserPanels
         /// </summary>
         private void InitializeRuntime()
         {
+            // Initialize loading overlay
+            _loadingOverlay = new LoadingOverlay();
+
             // Initialize timer manager
             _timerManager = new TimerManager(this);
             _timerManager.TimerElapsed += TimerManager_TimerElapsed;
@@ -56,65 +60,59 @@ namespace DynamicBrowserPanels
         /// </summary>
         private async void MainBrowserForm_Load(object sender, EventArgs e)
         {
-            // Check if we need to sync from Dropbox
-            var syncSettings = AppConfiguration.DropboxSyncSettings;
-            bool shouldSync = syncSettings.SyncEnabled && syncSettings.IsAuthenticated;
+            // Show loading overlay
+            _loadingOverlay.SetStatus("Initializing...");
+            _loadingOverlay.Show(this);
 
-            if (shouldSync)
+            // Sync from Dropbox FIRST (if enabled) - wait for it to complete
+            bool syncCompleted = false;
+            try
             {
-                // Show syncing message
-                using (var syncForm = new Form
-                {
-                    Text = "Syncing from Dropbox...",
-                    Size = new Size(350, 120),
-                    StartPosition = FormStartPosition.CenterParent,
-                    FormBorderStyle = FormBorderStyle.FixedDialog,
-                    ControlBox = false,
-                    ShowInTaskbar = false
-                })
-                {
-                    var label = new Label
-                    {
-                        Text = "Synchronizing data from Dropbox, please wait...",
-                        Dock = DockStyle.Fill,
-                        TextAlign = ContentAlignment.MiddleCenter
-                    };
-
-                    syncForm.Controls.Add(label);
-                    syncForm.Show(this);
-                    syncForm.Refresh();
-
-                    try
-                    {
-                        // Perform startup sync
-                        await DropboxAutoSync.SyncOnStartupAsync();
-                    }
-                    catch
-                    {
-                        // Continue loading even if sync fails
-                    }
-                }
+                _loadingOverlay.SetStatus("Syncing templates from Dropbox...");
+                await DropboxAutoSync.SyncOnStartupAsync();
+                syncCompleted = true;
+            }
+            catch
+            {
+                // Silent fail - continue with local files
             }
 
-            // Check if we should prompt to restore last template (only if NOT in command-line mode)
-            if (!BrowserStateManager.IsCommandLineMode && 
+            if (syncCompleted)
+            {
+                _loadingOverlay.SetStatus("Sync complete");
+                await Task.Delay(300); // Brief pause to show status
+            }
+
+            // Check if we should prompt to restore last template BEFORE loading state
+            // Now we know we have the latest version from Dropbox
+            bool shouldPromptForTemplate = !BrowserStateManager.IsCommandLineMode && 
                 AppConfiguration.PromptRestoreLastTemplate &&
                 !string.IsNullOrEmpty(AppConfiguration.LastLoadedTemplatePath) &&
-                File.Exists(AppConfiguration.LastLoadedTemplatePath))
+                File.Exists(AppConfiguration.LastLoadedTemplatePath);
+
+            if (shouldPromptForTemplate)
             {
+                // Hide loading for prompt
+                _loadingOverlay.Hide();
+
                 var templateName = Path.GetFileName(AppConfiguration.LastLoadedTemplatePath);
+                
                 var result = MessageBox.Show(
                     $"Would you like to restore your last session?\n\n" +
                     $"Template: {templateName}",
                     "Restore Last Session",
                     MessageBoxButtons.YesNo,
                     MessageBoxIcon.Question,
-                    MessageBoxDefaultButton.Button1
+                    MessageBoxDefaultButton.Button2 // Default to No for faster startup
                 );
+
+                // Show loading again
+                _loadingOverlay.SetStatus("Loading layout...");
+                _loadingOverlay.Show(this);
 
                 if (result == DialogResult.Yes)
                 {
-                    // Load the last template
+                    // Load the last template instead of current layout
                     var state = BrowserStateManager.LoadState(AppConfiguration.LastLoadedTemplatePath);
                     if (state != null)
                     {
@@ -123,15 +121,78 @@ namespace DynamicBrowserPanels
                         this.Text = $"{templateName} - Dynamic Browser Panels";
                         _timerManager.UpdateOriginalTitle(this.Text);
 
-                        // Apply the loaded state
-                        await ApplyLoadedState(state);
-                        return; // Don't call LoadStateAsync()
+                        // Restore form size with validation
+                        int width = state.FormWidth > 0 ? state.FormWidth : 1184;
+                        int height = state.FormHeight > 0 ? state.FormHeight : 761;
+                        this.Size = new Size(width, height);
+
+                        // Restore form position if saved
+                        if (state.FormX >= 0 && state.FormY >= 0)
+                        {
+                            this.StartPosition = FormStartPosition.Manual;
+                            this.Location = new Point(state.FormX, state.FormY);
+                            EnsureWindowVisible();
+                        }
+                        else
+                        {
+                            this.StartPosition = FormStartPosition.CenterScreen;
+                        }
+
+                        // Update status with tab count
+                        int tabCount = state.RootPanel?.TabsState?.TabUrls?.Count ?? 1;
+                        _loadingOverlay.SetStatus($"Loading {tabCount} tab{(tabCount != 1 ? "s" : "")}...");
+
+                        // Restore panel layout with tabs
+                        if (state.RootPanel != null)
+                        {
+                            await RestorePanelStateAsync(rootPanel, state.RootPanel);
+                        }
+                        else
+                        {
+                            await CreateDefaultBrowser();
+                        }
+                        
+                        // Hide loading overlay
+                        _loadingOverlay.Hide();
+                        
+                        // Start non-critical background tasks after loading
+                        StartBackgroundTasks();
+                        
+                        return; // Exit early, don't load current layout
                     }
                 }
             }
+            else
+            {
+                _loadingOverlay.SetStatus("Loading layout...");
+            }
 
-            // Load state after sync completes (normal flow)
+            // Load current layout (only if we didn't load a template above)
             await LoadStateAsync();
+
+            // Hide loading overlay
+            _loadingOverlay.Hide();
+            
+            // Start non-critical background tasks after loading
+            StartBackgroundTasks();
+        }
+
+        /// <summary>
+        /// Starts non-critical background tasks after main UI is loaded
+        /// </summary>
+        private void StartBackgroundTasks()
+        {
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    // Keeping this method as an architectural placeholder for any future non-critical background tasks we want to run after the main UI is responsive. For now, there are no tasks here, but this allows us to easily add them in the future without modifying the main load logic.
+                }
+                catch
+                {
+                    // Silent fail for non-critical tasks
+                }
+            });
         }
 
         /// <summary>
@@ -139,6 +200,10 @@ namespace DynamicBrowserPanels
         /// </summary>
         private async Task ApplyLoadedState(BrowserState state)
         {
+            // Show loading
+            _loadingOverlay.SetStatus("Applying layout...");
+            _loadingOverlay.Show(this);
+
             // Reset the current layout first
             DisposeAllControls(rootPanel);
             rootPanel.Controls.Clear();
@@ -155,6 +220,10 @@ namespace DynamicBrowserPanels
                 EnsureWindowVisible();
             }
 
+            // Update status with tab count
+            int tabCount = state.RootPanel?.TabsState?.TabUrls?.Count ?? 1;
+            _loadingOverlay.SetStatus($"Loading {tabCount} tab{(tabCount != 1 ? "s" : "")}...");
+
             // Restore panel layout
             if (state.RootPanel != null)
             {
@@ -164,6 +233,9 @@ namespace DynamicBrowserPanels
             {
                 await CreateDefaultBrowser();
             }
+
+            // Hide loading
+            _loadingOverlay.Hide();
         }
 
         /// <summary>
@@ -269,6 +341,10 @@ namespace DynamicBrowserPanels
                 this.StartPosition = FormStartPosition.CenterScreen;
             }
 
+            // Update status with tab count
+            int tabCount = state.RootPanel?.TabsState?.TabUrls?.Count ?? 1;
+            _loadingOverlay.SetStatus($"Loading {tabCount} tab{(tabCount != 1 ? "s" : "")}...");
+
             // Restore panel layout
             if (state.RootPanel != null)
             {
@@ -357,15 +433,14 @@ namespace DynamicBrowserPanels
 
                 parentPanel.Controls.Add(browser);
 
-                // Restore tabs state if available
+                // Restore tabs state
                 if (state.TabsState != null && state.TabsState.TabUrls != null && state.TabsState.TabUrls.Count > 0)
                 {
                     await browser.RestoreTabsState(state.TabsState);
                 }
-                // Otherwise navigate to legacy single URL if available, or create default tab
                 else
                 {
-                    // This will create a tab with the URL or home URL
+                    // Create default tab (lightweight operation)
                     await browser.RestoreTabsState(new TabsStateData
                     {
                         TabUrls = new List<string> { state.Url ?? GlobalConstants.DEFAULT_URL },
@@ -397,26 +472,27 @@ namespace DynamicBrowserPanels
                     orientation
                 );
 
-                // Restore child panels - AWAIT these calls
-                var panel1Task = Task.CompletedTask;
-                var panel2Task = Task.CompletedTask;
+                // Create panels first (synchronous, fast)
+                var panel1 = new Panel { Dock = DockStyle.Fill };
+                var panel2 = new Panel { Dock = DockStyle.Fill };
+                splitContainer.Panel1.Controls.Add(panel1);
+                splitContainer.Panel2.Controls.Add(panel2);
 
+                // Restore child panels in parallel
+                var tasks = new List<Task>();
+                
                 if (state.Panel1 != null)
                 {
-                    var panel1 = new Panel { Dock = DockStyle.Fill };
-                    splitContainer.Panel1.Controls.Add(panel1);
-                    panel1Task = RestorePanelStateAsync(panel1, state.Panel1);
+                    tasks.Add(RestorePanelStateAsync(panel1, state.Panel1));
                 }
 
                 if (state.Panel2 != null)
                 {
-                    var panel2 = new Panel { Dock = DockStyle.Fill };
-                    splitContainer.Panel2.Controls.Add(panel2);
-                    panel2Task = RestorePanelStateAsync(panel2, state.Panel2);
+                    tasks.Add(RestorePanelStateAsync(panel2, state.Panel2));
                 }
 
                 // Wait for both panels to complete restoration
-                await Task.WhenAll(panel1Task, panel2Task);
+                await Task.WhenAll(tasks);
             }
         }
 
@@ -784,6 +860,13 @@ namespace DynamicBrowserPanels
         /// </summary>
         private async void MainBrowserForm_FormClosing(object sender, FormClosingEventArgs e)
         {
+            // Show loading overlay during shutdown
+            _loadingOverlay.SetStatus("Closing...");
+            _loadingOverlay.Show(this);
+
+            // Flush any pending configuration saves immediately
+            AppConfiguration.FlushPendingSaves();
+            
             // Check if we need to sync to Dropbox
             var syncSettings = AppConfiguration.DropboxSyncSettings;
             bool shouldSync = syncSettings.SyncEnabled && syncSettings.IsAuthenticated;
@@ -793,66 +876,23 @@ namespace DynamicBrowserPanels
                 // Cancel the initial close
                 e.Cancel = true;
 
-                // Show syncing message
-                using (var syncForm = new Form
-                {
-                    Text = "Syncing to Dropbox...",
-                    Size = new Size(350, 120),
-                    StartPosition = FormStartPosition.CenterParent,
-                    FormBorderStyle = FormBorderStyle.FixedDialog,
-                    ControlBox = false,
-                    ShowInTaskbar = false
-                })
-                {
-                    var label = new Label
-                    {
-                        Text = "Synchronizing data to Dropbox, please wait...",
-                        Dock = DockStyle.Fill,
-                        TextAlign = ContentAlignment.MiddleCenter
-                    };
+                _loadingOverlay.SetStatus("Syncing to Dropbox...");
 
-                    syncForm.Controls.Add(label);
-                    syncForm.Show(this);
-                    syncForm.Refresh();
-
-                    try
-                    {
-                        // Perform shutdown sync
-                        await DropboxAutoSync.SyncOnShutdownAsync();
-                    }
-                    catch
-                    {
-                        // Continue closing even if sync fails
-                    }
+                try
+                {
+                    // Perform shutdown sync (push only, incremental)
+                    await DropboxAutoSync.SyncOnShutdownAsync();
+                }
+                catch
+                {
+                    // Continue closing even if sync fails
                 }
 
                 // Save the layout before closing
                 if (!BrowserStateManager.IsCommandLineMode)
                 {
-                    // Get the actual window bounds (not maximized bounds)
-                    Rectangle bounds;
-                    if (this.WindowState == FormWindowState.Normal)
-                    {
-                        bounds = new Rectangle(this.Location, this.Size);
-                    }
-                    else
-                    {
-                        // Use RestoreBounds when maximized or minimized
-                        bounds = this.RestoreBounds != Rectangle.Empty
-                            ? this.RestoreBounds
-                            : new Rectangle(this.Location, this.Size);
-                    }
-
-                    var state = new BrowserState
-                    {
-                        FormWidth = bounds.Width,
-                        FormHeight = bounds.Height,
-                        FormX = bounds.X,
-                        FormY = bounds.Y,
-                        RootPanel = CapturePanelState(rootPanel)
-                    };
-
-                    BrowserStateManager.SaveCurrentLayout(state);
+                    _loadingOverlay.SetStatus("Saving layout...");
+                    SaveCurrentStateSync();
                 }
 
                 // Unsubscribe from the FormClosing event to prevent recursion
@@ -866,32 +906,40 @@ namespace DynamicBrowserPanels
             // In command-line mode, the file is read-only - don't save on exit
             if (!BrowserStateManager.IsCommandLineMode)
             {
-                // Normal mode: save the current layout
-                // Get the actual window bounds (not maximized bounds)
-                Rectangle bounds;
-                if (this.WindowState == FormWindowState.Normal)
-                {
-                    bounds = new Rectangle(this.Location, this.Size);
-                }
-                else
-                {
-                    // Use RestoreBounds when maximized or minimized
-                    bounds = this.RestoreBounds != Rectangle.Empty
-                        ? this.RestoreBounds
-                        : new Rectangle(this.Location, this.Size);
-                }
-
-                var state = new BrowserState
-                {
-                    FormWidth = bounds.Width,
-                    FormHeight = bounds.Height,
-                    FormX = bounds.X,
-                    FormY = bounds.Y,
-                    RootPanel = CapturePanelState(rootPanel)
-                };
-
-                BrowserStateManager.SaveCurrentLayout(state);
+                _loadingOverlay.SetStatus("Saving layout...");
+                SaveCurrentStateSync();
             }
+        }
+
+        /// <summary>
+        /// Synchronously saves the current state (for shutdown)
+        /// </summary>
+        private void SaveCurrentStateSync()
+        {
+            // Get the actual window bounds (not maximized bounds)
+            Rectangle bounds;
+            if (this.WindowState == FormWindowState.Normal)
+            {
+                bounds = new Rectangle(this.Location, this.Size);
+            }
+            else
+            {
+                // Use RestoreBounds when maximized or minimized
+                bounds = this.RestoreBounds != Rectangle.Empty
+                    ? this.RestoreBounds
+                    : new Rectangle(this.Location, this.Size);
+            }
+
+            var state = new BrowserState
+            {
+                FormWidth = bounds.Width,
+                FormHeight = bounds.Height,
+                FormX = bounds.X,
+                FormY = bounds.Y,
+                RootPanel = CapturePanelState(rootPanel)
+            };
+
+            BrowserStateManager.SaveCurrentLayout(state);
         }
 
         /// <summary>
@@ -1019,6 +1067,7 @@ namespace DynamicBrowserPanels
             {
                 DisposeAllControls(rootPanel);
                 _timerManager?.Dispose();
+                _loadingOverlay?.Dispose();
             }
             base.Dispose(disposing);
         }

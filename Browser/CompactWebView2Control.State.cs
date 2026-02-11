@@ -153,14 +153,18 @@ namespace DynamicBrowserPanels
                 }
             });
 
-            // Create tabs from filtered state
+            // Get shared environment once (reused for all tabs)
+            var sharedEnvironment = await GetSharedEnvironment();
+
+            // Create all tabs and their UI elements on UI thread (fast)
+            var browserTabs = new List<BrowserTab>();
             for (int i = 0; i < filteredUrls.Count; i++)
             {
                 string customName = filteredCustomNames[i];
                 bool hasCustomName = !string.IsNullOrWhiteSpace(customName);
                 
                 var tabPage = new TabPage(hasCustomName ? customName : $"Tab {i + 1}");
-                var browserTab = new BrowserTab(await GetSharedEnvironment());
+                var browserTab = new BrowserTab(sharedEnvironment);
                 
                 // Set custom name BEFORE any events can fire - this prevents title overwrites
                 browserTab.CustomName = customName;
@@ -174,17 +178,25 @@ namespace DynamicBrowserPanels
                 
                 _browserTabs.Add(browserTab);
                 _tabCustomNames.Add(customName);
-                
-                await browserTab.Initialize(null);
-                
-                // Restore playlist state for this tab BEFORE navigating
-                if (filteredPlaylists[i] != null)
-                {
-                    browserTab.Playlist.RestoreState(filteredPlaylists[i]);
-                }
-                
-                await NavigateTabToUrl(browserTab, filteredUrls[i]);
+                browserTabs.Add(browserTab);
             }
+
+            // Initialize and navigate all tabs in parallel
+            var initializationTasks = new List<Task>();
+            for (int i = 0; i < browserTabs.Count; i++)
+            {
+                int index = i; // Capture index for closure
+                var browserTab = browserTabs[index];
+                var playlist = filteredPlaylists[index];
+                var url = filteredUrls[index];
+                
+                // Create a task for each tab's initialization and navigation
+                var task = InitializeAndNavigateTabAsync(browserTab, playlist, url);
+                initializationTasks.Add(task);
+            }
+
+            // Wait for all tabs to finish loading in parallel
+            await Task.WhenAll(initializationTasks);
 
             // Select the appropriate tab
             if (newSelectedIndex >= 0 && newSelectedIndex < tabControl.TabPages.Count)
@@ -196,6 +208,22 @@ namespace DynamicBrowserPanels
                 // If the originally selected tab was filtered out, select the first tab
                 tabControl.SelectedIndex = 0;
             }
+        }
+
+        /// <summary>
+        /// Initializes and navigates a single tab (can run in parallel with other tabs)
+        /// </summary>
+        private async Task InitializeAndNavigateTabAsync(BrowserTab browserTab, PlaylistStateData playlist, string url)
+        {
+            await browserTab.Initialize(null);
+            
+            // Restore playlist state for this tab BEFORE navigating
+            if (playlist != null)
+            {
+                browserTab.Playlist.RestoreState(playlist);
+            }
+            
+            await NavigateTabToUrl(browserTab, url);
         }
 
         /// <summary>
