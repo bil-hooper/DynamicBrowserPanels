@@ -25,7 +25,7 @@ namespace DynamicBrowserPanels
                 // Use incremental sync - only pull files changed since last sync
                 var result = await DropboxSyncManager.SynchronizeAsync(
                     settings,
-                    direction: DropboxSyncManager.SyncDirection.Both,
+                    direction: DropboxSyncManager.SyncDirection.PullOnly,
                     mode: DropboxSyncManager.SyncMode.Incremental
                 );
                 
@@ -64,7 +64,7 @@ namespace DynamicBrowserPanels
                 // Use incremental sync - only push files changed since last sync
                 var result = await DropboxSyncManager.SynchronizeAsync(
                     settings,
-                    direction: DropboxSyncManager.SyncDirection.Both,
+                    direction: DropboxSyncManager.SyncDirection.PushOnly,
                     mode: DropboxSyncManager.SyncMode.Incremental
                 );
                 

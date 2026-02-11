@@ -14,6 +14,7 @@ namespace DynamicBrowserPanels
         private CheckBox syncNotesCheckBox;
         private CheckBox syncPlaylistsCheckBox;
         private CheckBox syncTemplatesCheckBox;
+        private CheckBox syncHistoryCheckBox;
         private TextBox accessTokenTextBox;
         private TextBox appKeyTextBox;
         private TextBox appSecretTextBox;
@@ -42,7 +43,7 @@ namespace DynamicBrowserPanels
         private void InitializeComponent()
         {
             Text = "Dropbox Synchronization Settings";
-            Size = new Size(600, 620);
+            Size = new Size(600, 650); // Changed from 620 to 650
             StartPosition = FormStartPosition.CenterParent;
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
@@ -76,7 +77,7 @@ namespace DynamicBrowserPanels
             {
                 Text = "Sync Folders",
                 Location = new Point(20, 50),
-                Size = new Size(540, 100)
+                Size = new Size(540, 130) // Increased height to accommodate 4 checkboxes
             };
 
             syncNotesCheckBox = new CheckBox
@@ -100,13 +101,20 @@ namespace DynamicBrowserPanels
                 Size = new Size(150, 24)
             };
 
-            syncOptionsGroup.Controls.AddRange(new Control[] { syncNotesCheckBox, syncPlaylistsCheckBox, syncTemplatesCheckBox });
+            syncHistoryCheckBox = new CheckBox
+            {
+                Text = "History",
+                Location = new Point(200, 55),
+                Size = new Size(150, 24)
+            };
 
-            // Authentication Group
+            syncOptionsGroup.Controls.AddRange(new Control[] { syncNotesCheckBox, syncPlaylistsCheckBox, syncTemplatesCheckBox, syncHistoryCheckBox });
+
+            // Authentication Group - moved down by 30px
             var authGroup = new GroupBox
             {
                 Text = "Dropbox Authentication",
-                Location = new Point(20, 160),
+                Location = new Point(20, 190), // Changed from 160 to 190
                 Size = new Size(540, 180)
             };
 
@@ -187,11 +195,11 @@ namespace DynamicBrowserPanels
                 authenticateButton, testConnectionButton, revokeAccessButton
             });
 
-            // Sync Status Group (increased height for new buttons)
+            // Sync Status Group - moved down by 30px
             var statusGroup = new GroupBox
             {
                 Text = "Synchronization Status",
-                Location = new Point(20, 350),
+                Location = new Point(20, 380), // Changed from 350 to 380
                 Size = new Size(540, 130)
             };
 
@@ -248,29 +256,29 @@ namespace DynamicBrowserPanels
                 pullButton 
             });
 
-            // Status Label
+            // Status Label - moved down by 30px
             statusLabel = new Label
             {
-                Location = new Point(20, 490),
+                Location = new Point(20, 520), // Changed from 490 to 520
                 Size = new Size(540, 20),
                 ForeColor = Color.Blue
             };
 
-            // Info label
+            // Info label - moved down by 30px
             var infoLabel = new Label
             {
                 Text = "💡 Need help setting up? Click the ? button above",
-                Location = new Point(20, 515),
+                Location = new Point(20, 545), // Changed from 515 to 545
                 Size = new Size(400, 20),
                 ForeColor = Color.Gray,
                 Font = new Font(Font.FontFamily, 8.5f, FontStyle.Italic)
             };
 
-            // Action Buttons
+            // Action Buttons - moved down by 30px
             saveButton = new Button
             {
                 Text = "Save",
-                Location = new Point(390, 550),
+                Location = new Point(390, 580), // Changed from 550 to 580
                 Size = new Size(80, 30),
                 DialogResult = DialogResult.OK
             };
@@ -279,7 +287,7 @@ namespace DynamicBrowserPanels
             cancelButton = new Button
             {
                 Text = "Cancel",
-                Location = new Point(480, 550),
+                Location = new Point(480, 580), // Changed from 550 to 580
                 Size = new Size(80, 30),
                 DialogResult = DialogResult.Cancel
             };
@@ -316,6 +324,7 @@ namespace DynamicBrowserPanels
             syncNotesCheckBox.Checked = settings.SyncNotes;
             syncPlaylistsCheckBox.Checked = settings.SyncPlaylists;
             syncTemplatesCheckBox.Checked = settings.SyncTemplates;
+            syncHistoryCheckBox.Checked = settings.SyncHistory;
             appKeyTextBox.Text = settings.AppKey;
             appSecretTextBox.Text = settings.AppSecret;
             accessTokenTextBox.Text = settings.AccessToken;
@@ -332,6 +341,7 @@ namespace DynamicBrowserPanels
             settings.SyncNotes = syncNotesCheckBox.Checked;
             settings.SyncPlaylists = syncPlaylistsCheckBox.Checked;
             settings.SyncTemplates = syncTemplatesCheckBox.Checked;
+            settings.SyncHistory = syncHistoryCheckBox.Checked;
             settings.AppKey = appKeyTextBox.Text.Trim();
             settings.AppSecret = appSecretTextBox.Text.Trim();
             settings.AccessToken = accessTokenTextBox.Text.Trim();
@@ -355,6 +365,7 @@ namespace DynamicBrowserPanels
             syncNotesCheckBox.Enabled = enabled;
             syncPlaylistsCheckBox.Enabled = enabled;
             syncTemplatesCheckBox.Enabled = enabled;
+            syncHistoryCheckBox.Enabled = enabled;
             appKeyTextBox.Enabled = enabled;
             appSecretTextBox.Enabled = enabled;
             authenticateButton.Enabled = enabled && !string.IsNullOrEmpty(appKeyTextBox.Text) && !string.IsNullOrEmpty(appSecretTextBox.Text);
@@ -519,6 +530,7 @@ namespace DynamicBrowserPanels
                     SyncNotes = syncNotesCheckBox.Checked,
                     SyncPlaylists = syncPlaylistsCheckBox.Checked,
                     SyncTemplates = syncTemplatesCheckBox.Checked,
+                    SyncHistory = syncHistoryCheckBox.Checked,
                     AccessToken = accessTokenTextBox.Text.Trim(),
                     AppKey = appKeyTextBox.Text.Trim(),
                     AppSecret = appSecretTextBox.Text.Trim()

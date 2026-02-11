@@ -4,6 +4,7 @@ using static Dropbox.Api.TeamLog.EventCategory;
 using static Dropbox.Api.TeamLog.GroupJoinPolicy;
 using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 using static System.Windows.Forms.VisualStyles.VisualStyleElement.StartPanel;
+using System.IO;
 
 namespace DynamicBrowserPanels
 {
@@ -27,9 +28,6 @@ namespace DynamicBrowserPanels
             
             mnuHome = new ToolStripMenuItem("⌂ Home");
             mnuHome.Click += (s, e) => GoHome();
-            
-            separator1 = new ToolStripSeparator();
-            
             mnuOpenMedia = new ToolStripMenuItem("📁 Open Media File...");
             mnuOpenMedia.Click += (s, e) => OpenMediaFile();
 
@@ -52,7 +50,6 @@ namespace DynamicBrowserPanels
             mnuOpenNotepad = new ToolStripMenuItem("📝 Open Notepad");
             mnuOpenNotepad.Click += (s, e) => OpenNotepad();
 
-            separator1b = new ToolStripSeparator();
             
             // Timer menu
             mnuTimer = new ToolStripMenuItem("⏱ Timer");
@@ -70,8 +67,14 @@ namespace DynamicBrowserPanels
                 new ToolStripSeparator(),
                 new ToolStripMenuItem("⏹ Stop Timer", null, (s, e) => StopTimer())
             });
-            
-            new ToolStripSeparator();
+                        
+            // History menu
+            mnuHistory = new ToolStripMenuItem("📜 History");
+            mnuHistory.DropDownItems.AddRange(new ToolStripItem[]
+            {
+                new ToolStripMenuItem("📂 Open History Folder", null, (s, e) => OpenHistoryFolder()),
+                new ToolStripMenuItem("🗑️ Clear History", null, (s, e) => ClearHistory())
+            });
             
             mnuNewTab = new ToolStripMenuItem("+ New Tab");
             mnuNewTab.Click += async (s, e) => await AddNewTab();
@@ -93,16 +96,11 @@ namespace DynamicBrowserPanels
             
             mnuMoveTabToEnd = new ToolStripMenuItem("Move Tab to End ⇥");
             mnuMoveTabToEnd.Click += (s, e) => MoveTabToEnd();
-            
-            separator2 = new ToolStripSeparator();
-            
             mnuSplitHorizontal = new ToolStripMenuItem("Split Horizontal ⬌");
             mnuSplitHorizontal.Click += (s, e) => OnSplitRequested(Orientation.Horizontal);
             
             mnuSplitVertical = new ToolStripMenuItem("Split Vertical ⬍");
             mnuSplitVertical.Click += (s, e) => OnSplitRequested(Orientation.Vertical);
-            
-            separator3 = new ToolStripSeparator();
             
             mnuSaveLayoutDirect = new ToolStripMenuItem("💾 Save Layout");
             mnuSaveLayoutDirect.Click += (s, e) => SaveLayoutDirectRequested?.Invoke(this, EventArgs.Empty);
@@ -112,9 +110,7 @@ namespace DynamicBrowserPanels
             
             mnuLoadLayout = new ToolStripMenuItem("📂 Load Layout...");
             mnuLoadLayout.Click += (s, e) => LoadLayoutRequested?.Invoke(this, EventArgs.Empty);
-            
-            separator4 = new ToolStripSeparator();
-            
+                        
             mnuResetLayout = new ToolStripMenuItem("Reset Layout");
             mnuResetLayout.Click += (s, e) => ResetLayoutRequested?.Invoke(this, EventArgs.Empty);
 
@@ -139,12 +135,12 @@ namespace DynamicBrowserPanels
                 mnuForward, 
                 mnuRefresh, 
                 mnuHome,
-                separator1,
+                new ToolStripSeparator(),
                 mnuSaveLayoutDirect, 
                 mnuSaveLayoutAs, 
                 mnuLoadLayout,
                 mnuResetLayout,
-                separator4,
+                new ToolStripSeparator(),
                 mnuNewTab, 
                 mnuCloseTab, 
                 mnuRenameTab,
@@ -155,14 +151,16 @@ namespace DynamicBrowserPanels
                 new ToolStripSeparator(),
                 mnuSplitHorizontal, 
                 mnuSplitVertical,
-                separator3,
+                new ToolStripSeparator(),
+                mnuHistory,
+                new ToolStripSeparator(),
                 mnuOpenNotepad,
-                separator1b,
+                new ToolStripSeparator(),
                 mnuOpenMedia,
                 mnuPlaylistControls,
                 new ToolStripSeparator(),
                 mnuTimer,
-                separator2,
+                new ToolStripSeparator(),
                 mnuManagePasswords,
                 mnuDropboxSync,
                 new ToolStripSeparator(),
@@ -335,6 +333,58 @@ namespace DynamicBrowserPanels
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Error
                 );
+            }
+        }
+
+        /// <summary>
+        /// Opens the URL history folder in Windows Explorer
+        /// </summary>
+        private void OpenHistoryFolder()
+        {
+            try
+            {
+                string historyPath = UrlHistoryManager.GetHistoryFolderPath();
+                
+                // Ensure folder exists before opening
+                if (!Directory.Exists(historyPath))
+                {
+                    Directory.CreateDirectory(historyPath);
+                }
+                
+                System.Diagnostics.Process.Start("explorer.exe", historyPath);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Failed to open history folder: {ex.Message}", "Error", 
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        /// <summary>
+        /// Clears the URL history with confirmation
+        /// </summary>
+        private void ClearHistory()
+        {
+            var result = MessageBox.Show(
+                "Are you sure you want to clear all URL history?\n\n" +
+                "Click Yes if you want to delete all history for all time,\n\n" +
+                " or click No if you want to delete only today's history.\n\n",
+                "Clear History",
+                MessageBoxButtons.YesNoCancel,
+                MessageBoxIcon.Question
+            );
+
+            if (result == DialogResult.Yes)
+            {
+                UrlHistoryManager.ClearHistory();
+                MessageBox.Show("History cleared successfully.", "History", 
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            else if (result == DialogResult.No)
+            {
+                UrlHistoryManager.ClearTodaysHistory();
+                MessageBox.Show("Today's history cleared successfully.", "History",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
         }
     }

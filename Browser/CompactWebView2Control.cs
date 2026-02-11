@@ -22,10 +22,9 @@ namespace DynamicBrowserPanels
         private ToolStripMenuItem mnuForward;
         private ToolStripMenuItem mnuRefresh;
         private ToolStripMenuItem mnuHome;
-        private ToolStripSeparator separator1;
         private ToolStripMenuItem mnuOpenMedia;
+        private ToolStripMenuItem mnuHistory;
         private ToolStripMenuItem mnuPlaylistControls;
-        private ToolStripSeparator separator1b;
         private ToolStripMenuItem mnuOpenNotepad;
         private ToolStripMenuItem mnuTimer;
         private ToolStripMenuItem mnuNewTab;
@@ -35,14 +34,11 @@ namespace DynamicBrowserPanels
         private ToolStripMenuItem mnuMoveTabRight;
         private ToolStripMenuItem mnuMoveTabToStart;
         private ToolStripMenuItem mnuMoveTabToEnd;
-        private ToolStripSeparator separator2;
         private ToolStripMenuItem mnuSplitHorizontal;
         private ToolStripMenuItem mnuSplitVertical;
-        private ToolStripSeparator separator3;
         private ToolStripMenuItem mnuSaveLayoutDirect;
         private ToolStripMenuItem mnuSaveLayoutAs;
         private ToolStripMenuItem mnuLoadLayout;
-        private ToolStripSeparator separator4;
         private ToolStripMenuItem mnuResetLayout;
         private ToolStripMenuItem mnuManagePasswords;
         private ToolStripMenuItem mnuDropboxSync;

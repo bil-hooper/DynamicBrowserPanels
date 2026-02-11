@@ -207,6 +207,9 @@ namespace DynamicBrowserPanels
         {
             _currentUrl = e.Uri;
             UrlChanged?.Invoke(this, e.Uri);
+            
+            // Record URL in history (fire-and-forget)
+            UrlHistoryManager.RecordUrl(e.Uri);
         }
 
         private void WebView_NavigationCompleted(object sender, CoreWebView2NavigationCompletedEventArgs e)

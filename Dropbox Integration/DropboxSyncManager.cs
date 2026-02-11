@@ -19,6 +19,7 @@ namespace DynamicBrowserPanels
         private const string NotesFolder = "/Notes";
         private const string PlaylistsFolder = "/Playlists";
         private const string TemplatesFolder = "/Templates";
+        private const string HistoryFolder = "/History";
 
         private static readonly string AppDataDirectory = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -28,6 +29,7 @@ namespace DynamicBrowserPanels
         private static readonly string NotesDirectory = Path.Combine(AppDataDirectory, "Notes");
         private static readonly string PlaylistsDirectory = Path.Combine(AppDataDirectory, "Playlists");
         private static readonly string TemplatesDirectory = Path.Combine(AppDataDirectory, "Templates");
+        private static readonly string HistoryDirectory = Path.Combine(AppDataDirectory, "History");
 
         /// <summary>
         /// Sync direction options
@@ -114,6 +116,19 @@ namespace DynamicBrowserPanels
                         progress?.Report(action + "...");
                         await SyncFolderAsync(dbx, TemplatesDirectory, TemplatesFolder, direction, sinceDate);
                         result.TemplatesCount++;
+                    }
+
+                    if (settings.SyncHistory)
+                    {
+                        string action = direction switch
+                        {
+                            SyncDirection.PushOnly => "Pushing History to Dropbox",
+                            SyncDirection.PullOnly => "Pulling History from Dropbox",
+                            _ => "Synchronizing History"
+                        };
+                        progress?.Report(action + "...");
+                        await SyncFolderAsync(dbx, HistoryDirectory, HistoryFolder, direction, sinceDate);
+                        result.HistoryCount++;
                     }
 
                     result.Message = direction switch
@@ -416,6 +431,7 @@ namespace DynamicBrowserPanels
         public int NotesCount { get; set; }
         public int PlaylistsCount { get; set; }
         public int TemplatesCount { get; set; }
+        public int HistoryCount { get; set; }
         public string DetailedError { get; set; }
         public Exception Exception { get; set; }
     }

@@ -48,6 +48,11 @@ namespace DynamicBrowserPanels
         public bool SyncTemplates { get; set; } = false;
 
         /// <summary>
+        /// Whether to sync History folder
+        /// </summary>
+        public bool SyncHistory { get; set; } = false;
+
+        /// <summary>
         /// Last successful sync timestamp
         /// </summary>
         public DateTime? LastSyncTime { get; set; } = null;
