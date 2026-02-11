@@ -37,7 +37,7 @@ namespace DynamicBrowserPanels
             _tabCustomNames.Add(null); // No custom name for new tabs
             
             // Use the provided URL, or fallback to _homeUrl if not provided
-            string targetUrl = url ?? _homeUrl;
+            string targetUrl = url ?? GlobalConstants.DEFAULT_URL;
             
             // Pass the URL to Initialize so it navigates during initialization
             await browserTab.Initialize(targetUrl);
