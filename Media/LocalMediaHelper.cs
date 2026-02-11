@@ -1077,6 +1077,18 @@ namespace DynamicBrowserPanels
             text-align: center;
             font-size: 14px;
             color: #ccc;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 15px;
+        }}
+        .info .separator {{
+            color: #667eea;
+            font-weight: bold;
+        }}
+        .playlist-duration {{
+            color: #a8b3ff;
+            font-weight: 500;
         }}
         .playlist-sidebar {{
             width: 350px;
@@ -1150,7 +1162,11 @@ namespace DynamicBrowserPanels
             <audio id='mediaPlayer_audio' controls preload='auto' style='display:none;'></audio>
         </div>
         
-        <div class='info' id='info'>Loading...</div>
+        <div class='info'>
+            <span id='trackInfo'>Loading...</span>
+            <span class='separator'>|</span>
+            <span class='playlist-duration' id='playlistDuration'>Total: Calculating...</span>
+        </div>
         
         <div class='controls'>
             <button class='btn' onclick='playPrevious()'>⏮️ Previous</button>
@@ -1180,11 +1196,15 @@ namespace DynamicBrowserPanels
         let isPlaying = false;
         let currentPlayer = null;
         let playOrder = []; // Array of indices defining play order
+        let trackDurations = new Array(mediaFiles.length).fill(0); // Store duration of each track
+        let totalPlaylistDuration = 0; // Total duration of all tracks
+        let durationsLoaded = 0; // Counter for loaded durations
         
         const videoPlayer = document.getElementById('mediaPlayer');
         const audioPlayer = document.getElementById('mediaPlayer_audio');
         const titleBar = document.getElementById('titleBar');
-        const info = document.getElementById('info');
+        const trackInfo = document.getElementById('trackInfo');
+        const playlistDurationEl = document.getElementById('playlistDuration');
         const playlistEl = document.getElementById('playlist');
         const playPauseBtn = document.getElementById('playPauseBtn');
         const shuffleBtn = document.getElementById('shuffleBtn');
@@ -1196,6 +1216,65 @@ namespace DynamicBrowserPanels
             renderPlaylist();
             updateButtons();
             loadTrack(currentPlaylistIndex, true); // Autoplay immediately
+            calculateTotalDuration(); // Start calculating total playlist duration
+        }}
+        
+        // Calculate total playlist duration by loading metadata from all files
+        function calculateTotalDuration() {{
+            playlistDurationEl.textContent = 'Total: Calculating...';
+            
+            mediaFiles.forEach((file, index) => {{
+                // Create a temporary media element to get duration
+                const tempElement = file.isVideo ? document.createElement('video') : document.createElement('audio');
+                tempElement.src = file.url;
+                tempElement.preload = 'metadata';
+                
+                tempElement.addEventListener('loadedmetadata', function() {{
+                    trackDurations[index] = tempElement.duration || 0;
+                    durationsLoaded++;
+                    
+                    // Update total
+                    totalPlaylistDuration = trackDurations.reduce((sum, dur) => sum + dur, 0);
+                    updatePlaylistDurationDisplay();
+                    
+                    // Clean up
+                    tempElement.src = '';
+                    tempElement.remove();
+                }});
+                
+                tempElement.addEventListener('error', function() {{
+                    trackDurations[index] = 0;
+                    durationsLoaded++;
+                    
+                    if (durationsLoaded === mediaFiles.length) {{
+                        totalPlaylistDuration = trackDurations.reduce((sum, dur) => sum + dur, 0);
+                        updatePlaylistDurationDisplay();
+                    }}
+                    
+                    // Clean up
+                    tempElement.src = '';
+                    tempElement.remove();
+                }});
+            }});
+        }}
+        
+        function updatePlaylistDurationDisplay() {{
+            if (totalPlaylistDuration > 0) {{
+                const hours = Math.floor(totalPlaylistDuration / 3600);
+                const minutes = Math.floor((totalPlaylistDuration % 3600) / 60);
+                const seconds = Math.floor(totalPlaylistDuration % 60);
+                
+                let durationText = 'Total: ';
+                if (hours > 0) {{
+                    durationText += `${{hours}}:${{minutes.toString().padStart(2, '0')}}:${{seconds.toString().padStart(2, '0')}}`;
+                }} else {{
+                    durationText += `${{minutes}}:${{seconds.toString().padStart(2, '0')}}`;
+                }}
+                
+                playlistDurationEl.textContent = durationText;
+            }} else if (durationsLoaded === mediaFiles.length) {{
+                playlistDurationEl.textContent = 'Total: 0:00';
+            }}
         }}
         
         // Generate play order (normal or shuffled)
@@ -1259,7 +1338,7 @@ namespace DynamicBrowserPanels
             
             // Update UI
             titleBar.textContent = file.name;
-            info.textContent = `Track ${{fileIndex + 1}} of ${{mediaFiles.length}} • Position ${{playlistIndex + 1}} in queue`;
+            trackInfo.textContent = `Track ${{fileIndex + 1}} of ${{mediaFiles.length}} • Position ${{playlistIndex + 1}} in queue`;
             renderPlaylist();
             
             // Setup events
@@ -1267,7 +1346,7 @@ namespace DynamicBrowserPanels
                 const duration = Math.floor(currentPlayer.duration);
                 const minutes = Math.floor(duration / 60);
                 const seconds = duration % 60;
-                info.textContent = `Track ${{fileIndex + 1}} of ${{mediaFiles.length}} • Duration: ${{minutes}}:${{seconds.toString().padStart(2, '0')}}`;
+                trackInfo.textContent = `Track ${{fileIndex + 1}} of ${{mediaFiles.length}} • Duration: ${{minutes}}:${{seconds.toString().padStart(2, '0')}}`;
             }};
             
             currentPlayer.onended = () => {{
@@ -1285,7 +1364,7 @@ namespace DynamicBrowserPanels
             }};
             
             currentPlayer.onerror = () => {{
-                info.textContent = '❌ Error loading media';
+                trackInfo.textContent = '❌ Error loading media';
                 playNext(); // Auto-skip on error
             }};
             
@@ -1293,7 +1372,7 @@ namespace DynamicBrowserPanels
             if (autoplay) {{
                 currentPlayer.play().catch(err => {{
                     console.error('Autoplay failed:', err);
-                    info.textContent = 'Click Play to start';
+                    trackInfo.textContent = 'Click Play to start';
                 }});
             }}
         }}
@@ -1314,7 +1393,7 @@ namespace DynamicBrowserPanels
                     nextIndex = 0;
                 }} else {{
                     currentPlayer?.pause();
-                    info.textContent = '✓ Playlist finished';
+                    trackInfo.textContent = '✓ Playlist finished';
                     return;
                 }}
             }}
