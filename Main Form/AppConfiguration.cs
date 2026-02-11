@@ -69,6 +69,30 @@ namespace DynamicBrowserPanels
         }
 
         /// <summary>
+        /// Gets or sets the last directory used for loading media files
+        /// </summary>
+        public static string LastMediaDirectory
+        {
+            get
+            {
+                lock (_lock)
+                {
+                    EnsureSettingsLoaded();
+                    return _settings.LastMediaDirectory;
+                }
+            }
+            set
+            {
+                lock (_lock)
+                {
+                    EnsureSettingsLoaded();
+                    _settings.LastMediaDirectory = value;
+                    SaveSettings();
+                }
+            }
+        }
+
+        /// <summary>
         /// Ensures settings are loaded from disk
         /// </summary>
         private static void EnsureSettingsLoaded()
@@ -135,6 +159,7 @@ namespace DynamicBrowserPanels
         {
             public TimeSpan LastCustomTimerDuration { get; set; } = TimeSpan.FromMinutes(5);
             public DropboxSyncSettings DropboxSyncSettings { get; set; } = new DropboxSyncSettings();
+            public string LastMediaDirectory { get; set; } = string.Empty;
         }
     }
 }

@@ -654,10 +654,24 @@ namespace DynamicBrowserPanels
                     "WebM Videos (*.webm)|*.webm|" +
                     "All Files (*.*)|*.*";
                 openFileDialog.FilterIndex = 1;
+                
+                // Use last media directory if available
+                var lastDir = AppConfiguration.LastMediaDirectory;
+                if (!string.IsNullOrEmpty(lastDir) && Directory.Exists(lastDir))
+                {
+                    openFileDialog.InitialDirectory = lastDir;
+                }
                 openFileDialog.RestoreDirectory = true;
 
                 if (openFileDialog.ShowDialog() == DialogResult.OK)
                 {
+                    // Save the directory for next time
+                    var selectedDir = Path.GetDirectoryName(openFileDialog.FileName);
+                    if (!string.IsNullOrEmpty(selectedDir))
+                    {
+                        AppConfiguration.LastMediaDirectory = selectedDir;
+                    }
+                    
                     return openFileDialog.FileName;
                 }
             }
@@ -1460,10 +1474,9 @@ namespace DynamicBrowserPanels
                         // Check if this file belongs to the current template
                         // Format: webview_{type}_{templateId}_{guid}.html
                         var expectedPattern1 = $"webview_media_{templateId}_";
-                        var expectedPattern2 = $"webview_playlist_{templateId}_";
 
                         // Only process files belonging to current template
-                        if (fileName.StartsWith(expectedPattern1) || fileName.StartsWith(expectedPattern2))
+                        if (fileName.StartsWith(expectedPattern1))
                         {
                             // Normalize the file path for comparison
                             var normalizedFilePath = Path.GetFullPath(file);
