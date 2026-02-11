@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows7.0</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AssemblyName>DynamicBrowserPanels</AssemblyName>
+    <RootNamespace>DynamicBrowserPanels</RootNamespace>
+    <ApplicationIcon>Rubik.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="Rubik.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Microsoft Edge WebView2 SDK -->
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3719.77" />
+    
+    <!-- System.Text.Json for state serialization -->
+    <PackageReference Include="System.Text.Json" Version="10.0.2" />
+  </ItemGroup>
+
+</Project>
