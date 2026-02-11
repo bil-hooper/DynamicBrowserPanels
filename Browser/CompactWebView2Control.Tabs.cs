@@ -14,7 +14,7 @@ namespace DynamicBrowserPanels
         {
             if (_browserTabs.Count == 0)
             {
-                await AddNewTab(_homeUrl);
+                await AddNewTab();
             }
         }
 
@@ -36,12 +36,11 @@ namespace DynamicBrowserPanels
             _browserTabs.Add(browserTab);
             _tabCustomNames.Add(null); // No custom name for new tabs
             
-            await browserTab.Initialize(null);
+            // Use the provided URL, or fallback to _homeUrl if not provided
+            string targetUrl = url ?? _homeUrl;
             
-            if (!string.IsNullOrWhiteSpace(url))
-            {
-                await browserTab.NavigateToUrl(url);
-            }
+            // Pass the URL to Initialize so it navigates during initialization
+            await browserTab.Initialize(targetUrl);
             
             return browserTab;
         }
