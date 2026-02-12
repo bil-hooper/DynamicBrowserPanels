@@ -31,6 +31,10 @@ namespace DynamicBrowserPanels
             
             mnuOpenMedia = new ToolStripMenuItem("📁 Open Media File...");
             mnuOpenMedia.Click += (s, e) => OpenMediaFile();
+            
+            // Add new menu item for loop mode
+            mnuOpenMediaLoop = new ToolStripMenuItem("🔁 Open Media File in Auto-Loop...");
+            mnuOpenMediaLoop.Click += (s, e) => OpenMediaFileInLoop();
 
             mnuPlaylistControls = new ToolStripMenuItem("🎵 Playlist");
             mnuPlaylistControls.DropDownItems.AddRange(new ToolStripItem[]
@@ -183,6 +187,7 @@ namespace DynamicBrowserPanels
                 mnuOpenNotepad,
                 new ToolStripSeparator(),
                 mnuOpenMedia,
+                mnuOpenMediaLoop,  // ✅ Add the new menu item here
                 mnuPlaylistControls,
                 new ToolStripSeparator(),
                 mnuTimer,

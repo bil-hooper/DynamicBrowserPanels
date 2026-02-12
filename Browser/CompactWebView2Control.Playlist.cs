@@ -176,6 +176,122 @@ namespace DynamicBrowserPanels
         }
 
         /// <summary>
+        /// Opens a file dialog to select and play a media file in loop mode
+        /// </summary>
+        private void OpenMediaFileInLoop()
+        {
+            using (var openFileDialog = new OpenFileDialog())
+            {
+                openFileDialog.Title = "Select Media File for Auto-Loop";
+                openFileDialog.Filter = 
+                    "All Media Files|*.mp4;*.webm;*.ogv;*.ogg;*.mp3;*.wav;*.aac;*.m4a;*.opus;*.flac|" +
+                    "Video Files|*.mp4;*.webm;*.ogv;*.ogg|" +
+                    "Audio Files|*.mp3;*.wav;*.aac;*.m4a;*.opus;*.flac;*.ogg|" +
+                    "All Files|*.*";
+                openFileDialog.FilterIndex = 1;
+                
+                // Use last media directory if available
+                var lastDir = AppConfiguration.LastMediaDirectory;
+                if (!string.IsNullOrEmpty(lastDir) && Directory.Exists(lastDir))
+                {
+                    openFileDialog.InitialDirectory = lastDir;
+                }
+                openFileDialog.RestoreDirectory = true;
+
+                if (openFileDialog.ShowDialog() == DialogResult.OK)
+                {
+                    var filePath = openFileDialog.FileName;
+                    
+                    // Save the directory for next time
+                    var selectedDir = Path.GetDirectoryName(filePath);
+                    if (!string.IsNullOrEmpty(selectedDir))
+                    {
+                        AppConfiguration.LastMediaDirectory = selectedDir;
+                    }
+                    
+                    // Validate the media file
+                    if (!LocalMediaHelper.ValidateMediaFile(filePath, out string errorMessage))
+                    {
+                        MessageBox.Show(
+                            errorMessage,
+                            "Cannot Open Media File",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Error
+                        );
+                        
+                        // Suggest conversion if format is unsupported
+                        var suggestion = LocalMediaHelper.GetConversionSuggestion(filePath);
+                        if (suggestion != null)
+                        {
+                            MessageBox.Show(
+                                suggestion,
+                                "Conversion Required",
+                                MessageBoxButtons.OK,
+                                MessageBoxIcon.Information
+                            );
+                        }
+                        return;
+                    }
+
+                    // Show warning for large files
+                    if (errorMessage != null)
+                    {
+                        var result = MessageBox.Show(
+                            errorMessage + "\n\nContinue anyway?",
+                            "Warning",
+                            MessageBoxButtons.YesNo,
+                            MessageBoxIcon.Warning
+                        );
+                        
+                        if (result != DialogResult.Yes)
+                            return;
+                    }
+
+                    try
+                    {
+                        // Get current template path
+                        var templatePath = BrowserStateManager.GetCurrentLayoutPath();
+                        
+                        // Create HTML player page with the media file in LOOP mode
+                        // Note: passing null for playlistFiles forces single-file player with loop enabled
+                        var tempHtmlPath = LocalMediaHelper.CreateTemporaryPlayerFile(
+                            filePath,
+                            autoplay: true,  // Enable autoplay for user-initiated media file opens
+                            loop: true,      // ✅ ENABLE LOOP MODE
+                            playlistFiles: null,  // No playlist - single file mode
+                            currentIndex: 0,
+                            templatePath: templatePath
+                        );
+                        var url = LocalMediaHelper.FilePathToUrl(tempHtmlPath);
+                        
+                        // Navigate to the player
+                        NavigateToUrl(url);
+                        
+                        // Optionally set a custom tab name to indicate loop mode
+                        var currentTab = GetCurrentTab();
+                        int selectedIndex = tabControl.SelectedIndex;
+                        if (currentTab != null && selectedIndex >= 0 && selectedIndex < _tabCustomNames.Count)
+                        {
+                            var fileName = Path.GetFileNameWithoutExtension(filePath);
+                            _tabCustomNames[selectedIndex] = $"{fileName} (Loop)";
+                            currentTab.CustomName = $"{fileName} (Loop)";
+                            tabControl.TabPages[selectedIndex].Text = $"{fileName} (Loop)";
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show(
+                            $"Error opening media file:\n{ex.Message}",
+                            "Media Playback Error",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Error
+                        );
+                    }
+                }
+            }
+        }
+
+        /// <summary>
         /// Opens a playlist from file or folder
         /// </summary>
         private void OpenPlaylist()
