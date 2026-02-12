@@ -22,11 +22,22 @@ namespace DynamicBrowserPanels
         private Color _originalBackColor;
         private bool _flashState;
         private NativeWindow _messageFilter;
+        private TimeSpan _lastTimerDuration; // Store the last timer duration for auto-repeat
+        private bool _autoRepeat; // Auto-repeat setting
 
         /// <summary>
         /// Raised when the timer elapses (reaches zero)
         /// </summary>
         public event EventHandler TimerElapsed;
+
+        /// <summary>
+        /// Gets or sets whether the timer should automatically repeat
+        /// </summary>
+        public bool AutoRepeat
+        {
+            get => _autoRepeat;
+            set => _autoRepeat = value;
+        }
 
         public TimerManager(Form parentForm)
         {
@@ -51,6 +62,7 @@ namespace DynamicBrowserPanels
             StopTimer();
             StopAlert();
 
+            _lastTimerDuration = duration; // Store for auto-repeat
             _endTime = DateTime.Now.Add(duration);
             _isTimerRunning = true;
             _originalTitle = GetBaseTitle();
@@ -109,13 +121,36 @@ namespace DynamicBrowserPanels
             {
                 // Timer finished
                 StopTimer();
+                
+                // Start alert (alarm)
                 StartAlert();
+                
+                // Auto-repeat: restart timer immediately while alarm is playing
+                if (_autoRepeat && _lastTimerDuration.TotalSeconds > 0)
+                {
+                    RestartTimerAfterDelay();
+                }
             }
             else
             {
                 string timeStr = FormatTimeSpan(remaining);
-                _parentForm.Text = $"{_originalTitle} ⏱ {timeStr}";
+                string autoRepeatIndicator = _autoRepeat ? " 🔄" : "";
+                _parentForm.Text = $"{_originalTitle} ⏱ {timeStr}{autoRepeatIndicator}";
             }
+        }
+
+        /// <summary>
+        /// Restarts the timer after a brief delay (allows alert to start)
+        /// </summary>
+        private void RestartTimerAfterDelay()
+        {
+            // Restart the timer immediately (runs concurrently with the alarm)
+            _endTime = DateTime.Now.Add(_lastTimerDuration);
+            _isTimerRunning = true;
+
+            _countdownTimer = new Timer { Interval = 1000 };
+            _countdownTimer.Tick += CountdownTimer_Tick;
+            _countdownTimer.Start();
         }
 
         /// <summary>
@@ -167,8 +202,18 @@ namespace DynamicBrowserPanels
             // Play system alert sound repeatedly
             Task.Run(() => PlayAlertSoundLoop());
 
-            // Update title to show alert
-            _parentForm.Text = $"{_originalTitle} ⏰ TIME'S UP! (Click anywhere to dismiss)";
+            // Update title to show alert (with timer info if auto-repeat is active)
+            string alertMessage = "⏰ TIME'S UP! (Click anywhere to dismiss)";
+            if (_autoRepeat && _isTimerRunning)
+            {
+                TimeSpan remaining = _endTime - DateTime.Now;
+                if (remaining.TotalSeconds > 0)
+                {
+                    string timeStr = FormatTimeSpan(remaining);
+                    alertMessage = $"⏰ TIME'S UP! (Next: {timeStr}) (Click to dismiss)";
+                }
+            }
+            _parentForm.Text = $"{_originalTitle} {alertMessage}";
         }
 
         /// <summary>
@@ -224,7 +269,15 @@ namespace DynamicBrowserPanels
                 _parentForm.BackColor = _originalBackColor;
             }
 
-            RestoreOriginalTitle();
+            // If timer is still running (auto-repeat), update the titlebar
+            if (_isTimerRunning)
+            {
+                UpdateTitlebar();
+            }
+            else
+            {
+                RestoreOriginalTitle();
+            }
         }
 
         /// <summary>

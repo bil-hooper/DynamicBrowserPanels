@@ -65,6 +65,8 @@ namespace DynamicBrowserPanels
                 new ToolStripSeparator(),
                 new ToolStripMenuItem("⏱ Custom...", null, (s, e) => SetCustomTimer()),
                 new ToolStripSeparator(),
+                CreateAutoRepeatMenuItem(), // Add auto-repeat toggle
+                new ToolStripSeparator(),
                 new ToolStripMenuItem("⏹ Stop Timer", null, (s, e) => StopTimer())
             });
             

@@ -404,6 +404,7 @@ namespace DynamicBrowserPanels
             browser.LoadLayoutRequested += Browser_LoadLayoutRequested;
             browser.TimerRequested += Browser_TimerRequested;
             browser.TimerStopRequested += Browser_TimerStopRequested;
+            browser.TimerAutoRepeatRequested += Browser_TimerAutoRepeatRequested; // Add auto-repeat timer
 
             rootPanel.Controls.Add(browser);
 
@@ -436,6 +437,7 @@ namespace DynamicBrowserPanels
                 browser.LoadLayoutRequested += Browser_LoadLayoutRequested;
                 browser.TimerRequested += Browser_TimerRequested;
                 browser.TimerStopRequested += Browser_TimerStopRequested;
+                browser.TimerAutoRepeatRequested += Browser_TimerAutoRepeatRequested; // Add auto-repeat timer
 
                 parentPanel.Controls.Add(browser);
 
@@ -589,6 +591,7 @@ namespace DynamicBrowserPanels
             browser.LoadLayoutRequested -= Browser_LoadLayoutRequested;
             browser.TimerRequested -= Browser_TimerRequested;
             browser.TimerStopRequested -= Browser_TimerStopRequested;
+            browser.TimerAutoRepeatRequested -= Browser_TimerAutoRepeatRequested; // Remove old handler
 
             browser.SplitRequested += Browser_SplitRequested;
             browser.ResetLayoutRequested += Browser_ResetLayoutRequested;
@@ -597,6 +600,7 @@ namespace DynamicBrowserPanels
             browser.LoadLayoutRequested += Browser_LoadLayoutRequested;
             browser.TimerRequested += Browser_TimerRequested;
             browser.TimerStopRequested += Browser_TimerStopRequested;
+            browser.TimerAutoRepeatRequested += Browser_TimerAutoRepeatRequested; // Add auto-repeat timer
 
             panel1.Controls.Add(browser);
 
@@ -616,6 +620,7 @@ namespace DynamicBrowserPanels
             newBrowser.LoadLayoutRequested += Browser_LoadLayoutRequested;
             newBrowser.TimerRequested += Browser_TimerRequested;
             newBrowser.TimerStopRequested += Browser_TimerStopRequested;
+            newBrowser.TimerAutoRepeatRequested += Browser_TimerAutoRepeatRequested; // Add auto-repeat timer
 
             panel2.Controls.Add(newBrowser);
 
@@ -640,6 +645,17 @@ namespace DynamicBrowserPanels
         private void Browser_TimerStopRequested(object sender, EventArgs e)
         {
             _timerManager?.StopTimer();
+        }
+
+        /// <summary>
+        /// Handles auto-repeat timer toggle request from browser control
+        /// </summary>
+        private void Browser_TimerAutoRepeatRequested(object sender, bool enabled)
+        {
+            if (_timerManager != null)
+            {
+                _timerManager.AutoRepeat = enabled;
+            }
         }
 
         /// <summary>

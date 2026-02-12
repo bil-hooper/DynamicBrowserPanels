@@ -50,6 +50,7 @@ namespace DynamicBrowserPanels
         private ToolStripMenuItem mnuSaveProtectedTemplate;
         private ToolStripMenuItem mnuRemoveTemplateProtection;
         private ToolStripMenuItem mnuKeepAwake;
+        private ToolStripMenuItem mnuAutoRepeatTimer;
 
         // Tab management
         private List<BrowserTab> _browserTabs = new List<BrowserTab>();
@@ -77,6 +78,7 @@ namespace DynamicBrowserPanels
         public event EventHandler TimerStopRequested;
         public event EventHandler SaveProtectedTemplateRequested;
         public event EventHandler RemoveTemplateProtectionRequested;
+        public event EventHandler<bool> TimerAutoRepeatRequested;
 
         public CompactWebView2Control()
         {
@@ -523,6 +525,25 @@ namespace DynamicBrowserPanels
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information
             );
+        }
+
+        /// <summary>
+        /// Creates the auto-repeat menu item for the timer
+        /// </summary>
+        private ToolStripMenuItem CreateAutoRepeatMenuItem()
+        {
+            mnuAutoRepeatTimer = new ToolStripMenuItem("🔄 Auto-Repeat Timer");
+            mnuAutoRepeatTimer.CheckOnClick = true;
+            mnuAutoRepeatTimer.Click += (s, e) => ToggleAutoRepeatTimer();
+            return mnuAutoRepeatTimer;
+        }
+
+        /// <summary>
+        /// Toggles the auto-repeat timer mode
+        /// </summary>
+        private void ToggleAutoRepeatTimer()
+        {
+            TimerAutoRepeatRequested?.Invoke(this, mnuAutoRepeatTimer.Checked);
         }
 
         protected override void Dispose(bool disposing)
