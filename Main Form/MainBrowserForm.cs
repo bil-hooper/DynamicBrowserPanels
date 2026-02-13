@@ -884,6 +884,9 @@ namespace DynamicBrowserPanels
         /// </summary>
         private async void MainBrowserForm_FormClosing(object sender, FormClosingEventArgs e)
         {
+            // Hide form immediately for instant close feel
+            this.Hide();
+
             // Show loading overlay during shutdown
             _loadingOverlay.SetStatus("Closing...");
             _loadingOverlay.Show(this);

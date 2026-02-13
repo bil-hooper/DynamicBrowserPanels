@@ -1,10 +1,10 @@
-﻿using Microsoft.Web.WebView2.WinForms;
-using Microsoft.Web.WebView2.Core;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using Microsoft.Web.WebView2.Core;
 
 namespace DynamicBrowserPanels
 {
@@ -34,6 +34,8 @@ namespace DynamicBrowserPanels
         private ToolStripMenuItem mnuRenameTab;
         private ToolStripMenuItem mnuLockTab;
         private ToolStripMenuItem mnuUnlockTab;
+        private ToolStripMenuItem mnuMuteTab;
+        private ToolStripMenuItem mnuUnmuteTab;
         private ToolStripMenuItem mnuMoveTabLeft;
         private ToolStripMenuItem mnuMoveTabRight;
         private ToolStripMenuItem mnuMoveTabToStart;
@@ -90,6 +92,44 @@ namespace DynamicBrowserPanels
             tabControl.Selected += TabControl_Selected;
             tabControl.DrawMode = TabDrawMode.OwnerDrawFixed;
             tabControl.DrawItem += TabControl_DrawItem_LockOverlay;
+        }
+
+        /// <summary>
+        /// Mutes the current tab
+        /// </summary>
+        private void MuteCurrentTab()
+        {
+            var currentTab = GetCurrentTab();
+            if (currentTab != null)
+            {
+                currentTab.IsMuted = true;
+                RefreshTabText(tabControl.SelectedIndex);
+            }
+        }
+
+        /// <summary>
+        /// Unmutes the current tab
+        /// </summary>
+        private void UnmuteCurrentTab()
+        {
+            var currentTab = GetCurrentTab();
+            if (currentTab != null)
+            {
+                currentTab.IsMuted = false;
+                RefreshTabText(tabControl.SelectedIndex);
+            }
+        }
+
+        /// <summary>
+        /// Refreshes the tab text to update strikethrough state
+        /// </summary>
+        private void RefreshTabText(int tabIndex)
+        {
+            if (tabIndex < 0 || tabIndex >= _browserTabs.Count)
+                return;
+
+            // Force tab redraw
+            tabControl.Invalidate();
         }
 
         /// <summary>

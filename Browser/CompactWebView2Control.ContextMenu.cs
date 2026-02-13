@@ -89,13 +89,22 @@ namespace DynamicBrowserPanels
             
             mnuNewTab = new ToolStripMenuItem("+ New Tab");
             mnuNewTab.Click += async (s, e) => await AddNewTab();
+
+            var mnuNewIncognitoTab = new ToolStripMenuItem("🕶️ New Incognito Tab");
+            mnuNewIncognitoTab.Click += async (s, e) => await AddNewIncognitoTab();
             
             mnuCloseTab = new ToolStripMenuItem("✕ Close Tab");
             mnuCloseTab.Click += (s, e) => CloseCurrentTab();
             
             mnuRenameTab = new ToolStripMenuItem("✎ Rename Tab...");
             mnuRenameTab.Click += (s, e) => RenameCurrentTab();
-            
+
+            mnuMuteTab = new ToolStripMenuItem("🔇 Mute Tab");
+            mnuMuteTab.Click += (s, e) => MuteCurrentTab();
+
+            mnuUnmuteTab = new ToolStripMenuItem("🔊 Unmute Tab");
+            mnuUnmuteTab.Click += (s, e) => UnmuteCurrentTab();
+
             // Add tab privacy lock menu items
             mnuLockTab = new ToolStripMenuItem("🔒 Lock Tab");
             mnuLockTab.Click += (s, e) => LockCurrentTab();
@@ -169,11 +178,14 @@ namespace DynamicBrowserPanels
                 mnuLoadLayout,
                 mnuResetLayout,
                 new ToolStripSeparator(),
-                mnuNewTab, 
+                mnuNewTab,
+                mnuNewIncognitoTab,
                 mnuCloseTab, 
                 mnuRenameTab,
                 mnuLockTab,
                 mnuUnlockTab,
+                mnuMuteTab,
+                mnuUnmuteTab,
                 mnuMoveTabLeft, 
                 mnuMoveTabRight,
                 mnuMoveTabToStart, 
@@ -187,7 +199,7 @@ namespace DynamicBrowserPanels
                 mnuOpenNotepad,
                 new ToolStripSeparator(),
                 mnuOpenMedia,
-                mnuOpenMediaLoop,  // ✅ Add the new menu item here
+                mnuOpenMediaLoop,
                 mnuPlaylistControls,
                 new ToolStripSeparator(),
                 mnuTimer,
@@ -217,6 +229,10 @@ namespace DynamicBrowserPanels
         private void UpdateContextMenuButtons()
         {
             var currentTab = GetCurrentTab();
+
+            bool tabIsMuted = currentTab?.IsMuted ?? false;
+            mnuMuteTab.Visible = !tabIsMuted;
+            mnuUnmuteTab.Visible = tabIsMuted;
 
             if (currentTab?.IsInitialized == true)
             {

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Threading.Tasks;
@@ -22,10 +22,11 @@ namespace DynamicBrowserPanels
         /// <summary>
         /// Adds a new tab with the specified URL
         /// </summary>
-        private async Task<BrowserTab> AddNewTab(string url = null)
+        private async Task<BrowserTab> AddNewTab(string url = null, bool isIncognito = false)
         {
-            var tabPage = new TabPage($"Tab {_browserTabs.Count + 1}");
-            var browserTab = new BrowserTab(await GetSharedEnvironment());
+            string tabPrefix = isIncognito ? "🕶️ " : "";
+            var tabPage = new TabPage($"{tabPrefix}Tab {_browserTabs.Count + 1}");
+            var browserTab = new BrowserTab(await GetSharedEnvironment(), isIncognito);
             
             browserTab.WebView.Dock = DockStyle.Fill;
             browserTab.UrlChanged += BrowserTab_UrlChanged;
@@ -44,6 +45,14 @@ namespace DynamicBrowserPanels
             await browserTab.Initialize(targetUrl);
             
             return browserTab;
+        }
+
+        /// <summary>
+        /// Adds a new incognito tab
+        /// </summary>
+        private async Task AddNewIncognitoTab()
+        {
+            await AddNewTab(null, isIncognito: true);
         }
 
         /// <summary>
@@ -147,6 +156,7 @@ namespace DynamicBrowserPanels
                 if (inputForm.ShowDialog() == DialogResult.OK)
                 {
                     string newName = textBox.Text.Trim();
+                    string incognitoPrefix = currentTab.IsIncognito ? "🕶️ " : "";
 
                     if (string.IsNullOrWhiteSpace(newName))
                     {
@@ -166,12 +176,12 @@ namespace DynamicBrowserPanels
                             }
                             else
                             {
-                                currentTabPage.Text = $"Tab {selectedIndex + 1}";
+                                currentTabPage.Text = $"{incognitoPrefix}Tab {selectedIndex + 1}";
                             }
                         }
                         else
                         {
-                            currentTabPage.Text = $"Tab {selectedIndex + 1}";
+                            currentTabPage.Text = $"{incognitoPrefix}Tab {selectedIndex + 1}";
                         }
                     }
                     else
@@ -179,7 +189,7 @@ namespace DynamicBrowserPanels
                         // Set custom name
                         _tabCustomNames[selectedIndex] = newName;
                         currentTab.CustomName = newName;
-                        currentTabPage.Text = newName;
+                        currentTabPage.Text = incognitoPrefix + newName;
                     }
                 }
             }
@@ -302,5 +312,5 @@ namespace DynamicBrowserPanels
                 ObfuscateTab(lockedIndex);
             }
         }
-    }
+        }
 }

@@ -16,9 +16,14 @@ namespace DynamicBrowserPanels
         {
             var tabUrls = new List<string>();
             var tabPlaylists = new List<PlaylistStateData>();
+            var tabMuteStates = new List<bool>();
             
             foreach (var tab in _browserTabs)
             {
+                // Skip incognito tabs - they should not be saved to templates
+                if (tab.IsIncognito)
+                    continue;
+
                 var url = tab.CurrentUrl;
                 
                 if (string.IsNullOrWhiteSpace(url))
@@ -47,15 +52,37 @@ namespace DynamicBrowserPanels
                 {
                     tabPlaylists.Add(null); // No playlist for this tab
                 }
+                
+                // Save mute state for each tab
+                tabMuteStates.Add(tab.IsMuted);
             }
             
+            // If no tabs were saved (all were incognito), ensure at least the home URL is saved
+            if (tabUrls.Count == 0)
+            {
+                tabUrls.Add(HomeUrl);
+                tabPlaylists.Add(null);
+                tabMuteStates.Add(false); // Default unmuted
+            }
+
+            // Get custom names only for non-incognito tabs
+            var savedCustomNames = new List<string>();
+            for (int i = 0; i < _browserTabs.Count; i++)
+            {
+                if (!_browserTabs[i].IsIncognito)
+                {
+                    savedCustomNames.Add(i < _tabCustomNames.Count ? _tabCustomNames[i] : null);
+                }
+            }
+
             // Create the result object
             var result = new TabsStateData
             {
-                SelectedTabIndex = tabControl.SelectedIndex,
+                SelectedTabIndex = 0, // Always select first tab when loading
                 TabUrls = tabUrls,
-                TabCustomNames = new List<string>(_tabCustomNames),
-                TabPlaylists = tabPlaylists
+                TabCustomNames = savedCustomNames,
+                TabPlaylists = tabPlaylists,
+                TabMuteStates = tabMuteStates
             };
             
             return result;
@@ -83,6 +110,7 @@ namespace DynamicBrowserPanels
             var filteredUrls = new List<string>();
             var filteredCustomNames = new List<string>();
             var filteredPlaylists = new List<PlaylistStateData>();
+            var filteredMuteStates = new List<bool>();
             int originalSelectedIndex = state.SelectedTabIndex;
             int newSelectedIndex = -1;
 
@@ -109,6 +137,12 @@ namespace DynamicBrowserPanels
                         ? state.TabCustomNames[i] 
                         : null);
                     filteredPlaylists.Add(playlist);
+                    
+                    // Get mute state (default to false if not available)
+                    bool muteState = state.TabMuteStates != null && i < state.TabMuteStates.Count 
+                        ? state.TabMuteStates[i] 
+                        : false;
+                    filteredMuteStates.Add(muteState);
 
                     // Track the selected index
                     if (i == originalSelectedIndex)
@@ -164,10 +198,13 @@ namespace DynamicBrowserPanels
                 bool hasCustomName = !string.IsNullOrWhiteSpace(customName);
                 
                 var tabPage = new TabPage(hasCustomName ? customName : $"Tab {i + 1}");
-                var browserTab = new BrowserTab(sharedEnvironment);
+                var browserTab = new BrowserTab(sharedEnvironment, isIncognito: false); // Restored tabs are never incognito
                 
                 // Set custom name BEFORE any events can fire - this prevents title overwrites
                 browserTab.CustomName = customName;
+                
+                // Restore mute state BEFORE initialization
+                browserTab.IsMuted = filteredMuteStates[i];
                 
                 browserTab.WebView.Dock = DockStyle.Fill;
                 browserTab.UrlChanged += BrowserTab_UrlChanged;

@@ -7,6 +7,7 @@ namespace DynamicBrowserPanels
         public int SelectedTabIndex { get; set; }
         public List<string> TabUrls { get; set; } = new List<string>();
         public List<string> TabCustomNames { get; set; } = new List<string>(); 
-        public List<PlaylistStateData> TabPlaylists { get; set; } = new List<PlaylistStateData>(); 
+        public List<PlaylistStateData> TabPlaylists { get; set; } = new List<PlaylistStateData>();
+        public List<bool> TabMuteStates { get; set; } = new List<bool>();
     }
 }

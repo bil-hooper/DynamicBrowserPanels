@@ -22,16 +22,40 @@ namespace DynamicBrowserPanels
 
         public event EventHandler<string> UrlChanged;
         public event EventHandler<string> TitleChanged;
+        public event EventHandler MuteStateChanged;
         
         // Add field
         private PlaylistManager _playlist;
         private OnlineMediaPlaylist _onlinePlaylist;
+        private bool _isMuted = false;
 
         public WebView2 WebView => _webView;
         public bool IsInitialized => _isInitialized;
         public string CurrentUrl => _currentUrl ?? _webView?.Source?.ToString() ?? _pendingUrl ?? "";
         public bool CanGoBack => _webView?.CoreWebView2?.CanGoBack ?? false;
         public bool CanGoForward => _webView?.CoreWebView2?.CanGoForward ?? false;
+
+        /// <summary>
+        /// Indicates whether this tab is in incognito mode (no history, no template save)
+        /// </summary>
+        public bool IsIncognito { get; set; }
+
+        /// <summary>
+        /// Gets or sets whether this tab is muted
+        /// </summary>
+        public bool IsMuted 
+        { 
+            get => _isMuted;
+            set
+            {
+                if (_isMuted != value)
+                {
+                    _isMuted = value;
+                    ApplyMuteState();
+                    MuteStateChanged?.Invoke(this, EventArgs.Empty);
+                }
+            }
+        }
 
         // Add property
         public PlaylistManager Playlist
@@ -65,10 +89,11 @@ namespace DynamicBrowserPanels
         /// </summary>
         public string CustomName { get; set; }
 
-        public BrowserTab(CoreWebView2Environment environment)
+        public BrowserTab(CoreWebView2Environment environment, bool isIncognito = false)
         {
             _environment = environment;
             _webView = new WebView2();
+            IsIncognito = isIncognito;
         }
 
         public async Task Initialize(string initialUrl)
@@ -99,6 +124,9 @@ namespace DynamicBrowserPanels
 
                 _isInitialized = true;
 
+                // Apply mute state if already set
+                ApplyMuteState();
+
                 // Navigate to initial URL
                 if (!string.IsNullOrWhiteSpace(initialUrl))
                 {
@@ -118,6 +146,63 @@ namespace DynamicBrowserPanels
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Error
                 );
+            }
+        }
+
+        /// <summary>
+        /// Applies the mute state to the WebView2
+        /// </summary>
+        private void ApplyMuteState()
+        {
+            if (!_isInitialized || _webView?.CoreWebView2 == null)
+                return;
+
+            try
+            {
+                // Use the native WebView2 IsMuted property for proper audio control
+                // This requires Microsoft.Web.WebView2 SDK version 1.0.1661.34 or later
+                _webView.CoreWebView2.IsMuted = _isMuted;
+            }
+            catch (Exception ex)
+            {
+                // If IsMuted is not available (older WebView2 runtime), fall back to JavaScript
+                System.Diagnostics.Debug.WriteLine($"Failed to set native mute state: {ex.Message}");
+                ApplyMuteStateViaJavaScript();
+            }
+        }
+
+        /// <summary>
+        /// Fallback method to apply mute state via JavaScript (less reliable)
+        /// </summary>
+        private async void ApplyMuteStateViaJavaScript()
+        {
+            if (!_isInitialized || _webView?.CoreWebView2 == null)
+                return;
+
+            try
+            {
+                // Set audio mute state using JavaScript
+                string script = _isMuted 
+                    ? @"
+                        (function() {
+                            document.querySelectorAll('video, audio').forEach(function(el) {
+                                el.muted = true;
+                            });
+                        })();
+                      "
+                    : @"
+                        (function() {
+                            document.querySelectorAll('video, audio').forEach(function(el) {
+                                el.muted = false;
+                            });
+                        })();
+                      ";
+
+                await _webView.CoreWebView2.ExecuteScriptAsync(script);
+            }
+            catch
+            {
+                // Silently ignore script execution errors
             }
         }
 
@@ -208,8 +293,11 @@ namespace DynamicBrowserPanels
             _currentUrl = e.Uri;
             UrlChanged?.Invoke(this, e.Uri);
             
-            // Record URL in history (fire-and-forget)
-            UrlHistoryManager.RecordUrl(e.Uri);
+            // Only record URL in history if NOT in incognito mode
+            if (!IsIncognito)
+            {
+                UrlHistoryManager.RecordUrl(e.Uri);
+            }
         }
 
         private void WebView_NavigationCompleted(object sender, CoreWebView2NavigationCompletedEventArgs e)
@@ -219,6 +307,9 @@ namespace DynamicBrowserPanels
             
             // Signal that navigation is complete
             _navigationCompletionSource?.TrySetResult(true);
+
+            // Reapply mute state after navigation
+            ApplyMuteState();
         }
 
         private void CoreWebView2_DocumentTitleChanged(object sender, object e)

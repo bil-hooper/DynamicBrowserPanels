@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Drawing;
 using System.Windows.Forms;
 
@@ -107,16 +107,27 @@ namespace DynamicBrowserPanels
                 }
             }
 
-            // Draw the tab text
+            // Draw the tab text with strikethrough if muted
             StringFormat stringFormat = new StringFormat
             {
                 Alignment = StringAlignment.Center,
                 LineAlignment = StringAlignment.Center
             };
 
+            // Check if tab is muted
+            bool isMuted = e.Index >= 0 && e.Index < _browserTabs.Count && _browserTabs[e.Index].IsMuted;
+            Font textFont = isMuted 
+                ? new Font(tabControl.Font, FontStyle.Strikeout) 
+                : tabControl.Font;
+
             using (SolidBrush textBrush = new SolidBrush(Color.Black))
             {
-                g.DrawString(tabPage.Text, tabControl.Font, textBrush, tabBounds, stringFormat);
+                g.DrawString(tabPage.Text, textFont, textBrush, tabBounds, stringFormat);
+            }
+
+            if (isMuted)
+            {
+                textFont.Dispose();
             }
         }
 
@@ -195,7 +206,9 @@ namespace DynamicBrowserPanels
                     displayTitle = displayTitle.Substring(0, GlobalConstants.TITLE_TRUNCATE_LENGTH) + "...";
                 }
                 
-                tabPage.Text = displayTitle;
+                // Preserve incognito prefix if tab is incognito
+                string incognitoPrefix = tab.IsIncognito ? "🕶️ " : "";
+                tabPage.Text = incognitoPrefix + displayTitle;
             }
             // If custom name is set, do nothing - the custom name takes precedence
         }
