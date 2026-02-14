@@ -17,8 +17,8 @@ namespace DynamicBrowserPanels
         {
             var settings = AppConfiguration.DropboxSyncSettings;
 
-            // Only sync if enabled and authenticated
-            if (!settings.SyncEnabled || !settings.IsAuthenticated)
+            // Only sync if enabled, authenticated, AND SyncOnStartup is true
+            if (!settings.SyncEnabled || !settings.IsAuthenticated || !settings.SyncOnStartup)
             {
                 return;
             }
@@ -76,11 +76,19 @@ namespace DynamicBrowserPanels
                         tasks.Add(manager.SyncFolderAsync("/Images", imagesDir));
                     }
 
+                    // Sync URL pads
+                    if (settings.SyncUrlPad)
+                    {
+                        var urlPadDir = Path.Combine(baseDir, "UrlPad");
+                        tasks.Add(manager.SyncFolderAsync("/UrlPad", urlPadDir));
+                    }
+
                     // Wait for all background syncs to complete
                     await Task.WhenAll(tasks);
 
                     // Update last sync time
                     settings.LastSyncTime = DateTime.UtcNow;
+                    settings.LastPullTime = DateTime.UtcNow;
                     AppConfiguration.DropboxSyncSettings = settings;
                 }
             }
@@ -97,7 +105,8 @@ namespace DynamicBrowserPanels
         {
             var settings = AppConfiguration.DropboxSyncSettings;
 
-            if (!settings.SyncEnabled || !settings.IsAuthenticated)
+            // Only sync if enabled, authenticated, AND SyncOnShutdown is true
+            if (!settings.SyncEnabled || !settings.IsAuthenticated || !settings.SyncOnShutdown)
                 return;
 
             try

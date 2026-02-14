@@ -33,6 +33,16 @@ namespace DynamicBrowserPanels
         public bool SyncEnabled { get; set; } = false;
 
         /// <summary>
+        /// Whether to automatically sync on application startup
+        /// </summary>
+        public bool SyncOnStartup { get; set; } = true;
+
+        /// <summary>
+        /// Whether to automatically sync on application shutdown
+        /// </summary>
+        public bool SyncOnShutdown { get; set; } = true;
+
+        /// <summary>
         /// Whether to sync Notes folder
         /// </summary>
         public bool SyncNotes { get; set; } = false;
@@ -56,6 +66,16 @@ namespace DynamicBrowserPanels
         /// Whether to sync Images folder
         /// </summary>
         public bool SyncImages { get; set; } = false;
+
+        /// <summary>
+        /// Whether to sync Bookmarks folder
+        /// </summary>
+        public bool SyncBookmarks { get; set; } = false;
+
+        /// <summary>
+        /// Whether to sync UrlPad folder
+        /// </summary>
+        public bool SyncUrlPad { get; set; } = false;
 
         /// <summary>
         /// Last successful sync timestamp (for display purposes)

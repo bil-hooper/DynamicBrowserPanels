@@ -2,6 +2,7 @@
 using System.Drawing;
 using System.Windows.Forms;
 using System.Threading.Tasks;
+using System.IO;
 
 namespace DynamicBrowserPanels
 {
@@ -11,11 +12,14 @@ namespace DynamicBrowserPanels
     public class DropboxSyncForm : Form
     {
         private CheckBox enableSyncCheckBox;
+        private CheckBox syncOnStartupCheckBox;
+        private CheckBox syncOnShutdownCheckBox;
         private CheckBox syncNotesCheckBox;
         private CheckBox syncPlaylistsCheckBox;
         private CheckBox syncTemplatesCheckBox;
         private CheckBox syncHistoryCheckBox;
         private CheckBox syncImagesCheckBox;
+        private CheckBox syncUrlPadCheckBox;
         private TextBox accessTokenTextBox;
         private TextBox appKeyTextBox;
         private TextBox appSecretTextBox;
@@ -44,7 +48,7 @@ namespace DynamicBrowserPanels
         private void InitializeComponent()
         {
             Text = "Dropbox Synchronization Settings";
-            Size = new Size(600, 650); // Changed from 620 to 650
+            Size = new Size(600, 750);
             StartPosition = FormStartPosition.CenterParent;
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
@@ -73,12 +77,37 @@ namespace DynamicBrowserPanels
             };
             enableSyncCheckBox.CheckedChanged += EnableSyncCheckBox_CheckedChanged;
 
-            // Sync Options Group
+            // Auto-Sync Options Group (NEW)
+            var autoSyncGroup = new GroupBox
+            {
+                Text = "Automatic Sync Timing",
+                Location = new Point(20, 50),
+                Size = new Size(540, 80)
+            };
+
+            syncOnStartupCheckBox = new CheckBox
+            {
+                Text = "Sync on application startup (Pull from Dropbox)",
+                Location = new Point(20, 25),
+                Size = new Size(350, 24)
+            };
+
+            syncOnShutdownCheckBox = new CheckBox
+            {
+                Text = "Sync on application shutdown (Push to Dropbox)",
+                Location = new Point(20, 50),
+                Size = new Size(350, 24)
+            };
+
+            autoSyncGroup.Controls.Add(syncOnStartupCheckBox);
+            autoSyncGroup.Controls.Add(syncOnShutdownCheckBox);
+
+            // Sync Folders Group (moved down)
             var syncOptionsGroup = new GroupBox
             {
                 Text = "Sync Folders",
-                Location = new Point(20, 50),
-                Size = new Size(540, 130) // Increased height to accommodate 4 checkboxes
+                Location = new Point(20, 140),
+                Size = new Size(540, 120)
             };
 
             syncNotesCheckBox = new CheckBox
@@ -105,28 +134,36 @@ namespace DynamicBrowserPanels
             syncHistoryCheckBox = new CheckBox
             {
                 Text = "History",
-                Location = new Point(20, 97),
+                Location = new Point(20, 85),
                 Size = new Size(150, 24)
             };
 
             syncImagesCheckBox = new CheckBox
             {
                 Text = "Images",
-                Location = new Point(170, 97),
+                Location = new Point(200, 55),
                 Size = new Size(150, 24)
             };
-            
+
+            syncUrlPadCheckBox = new CheckBox
+            {
+                Text = "UrlPad",
+                Location = new Point(200, 85),
+                Size = new Size(150, 24)
+            };
+
             syncOptionsGroup.Controls.Add(syncNotesCheckBox);
             syncOptionsGroup.Controls.Add(syncPlaylistsCheckBox);
             syncOptionsGroup.Controls.Add(syncTemplatesCheckBox);
             syncOptionsGroup.Controls.Add(syncHistoryCheckBox);
-            syncOptionsGroup.Controls.Add(syncImagesCheckBox); // ADD THIS
+            syncOptionsGroup.Controls.Add(syncImagesCheckBox);
+            syncOptionsGroup.Controls.Add(syncUrlPadCheckBox);
 
-            // Authentication Group - moved down by 30px
+            // Authentication Group - moved down
             var authGroup = new GroupBox
             {
                 Text = "Dropbox Authentication",
-                Location = new Point(20, 190), // Changed from 160 to 190
+                Location = new Point(20, 270),
                 Size = new Size(540, 180)
             };
 
@@ -207,11 +244,11 @@ namespace DynamicBrowserPanels
                 authenticateButton, testConnectionButton, revokeAccessButton
             });
 
-            // Sync Status Group - moved down by 30px
+            // Sync Status Group - moved down
             var statusGroup = new GroupBox
             {
                 Text = "Synchronization Status",
-                Location = new Point(20, 380), // Changed from 350 to 380
+                Location = new Point(20, 460),
                 Size = new Size(540, 130)
             };
 
@@ -260,37 +297,37 @@ namespace DynamicBrowserPanels
             pullButton.FlatAppearance.BorderColor = Color.FromArgb(255, 153, 0);
             pullButton.Click += PullButton_Click;
 
-            statusGroup.Controls.AddRange(new Control[] { 
-                lastSyncLabel, 
-                syncProgressBar, 
-                syncNowButton, 
-                pushButton, 
-                pullButton 
+            statusGroup.Controls.AddRange(new Control[] {
+                lastSyncLabel,
+                syncProgressBar,
+                syncNowButton,
+                pushButton,
+                pullButton
             });
 
-            // Status Label - moved down by 30px
+            // Status Label - moved down
             statusLabel = new Label
             {
-                Location = new Point(20, 520), // Changed from 490 to 520
+                Location = new Point(20, 600),
                 Size = new Size(540, 20),
                 ForeColor = Color.Blue
             };
 
-            // Info label - moved down by 30px
+            // Info label - moved down
             var infoLabel = new Label
             {
                 Text = "💡 Need help setting up? Click the ? button above",
-                Location = new Point(20, 545), // Changed from 515 to 545
+                Location = new Point(20, 625),
                 Size = new Size(400, 20),
                 ForeColor = Color.Gray,
                 Font = new Font(Font.FontFamily, 8.5f, FontStyle.Italic)
             };
 
-            // Action Buttons - moved down by 30px
+            // Action Buttons - moved down
             saveButton = new Button
             {
                 Text = "Save",
-                Location = new Point(390, 580), // Changed from 550 to 580
+                Location = new Point(390, 670),
                 Size = new Size(80, 30),
                 DialogResult = DialogResult.OK
             };
@@ -299,7 +336,7 @@ namespace DynamicBrowserPanels
             cancelButton = new Button
             {
                 Text = "Cancel",
-                Location = new Point(480, 580), // Changed from 550 to 580
+                Location = new Point(480, 670),
                 Size = new Size(80, 30),
                 DialogResult = DialogResult.Cancel
             };
@@ -310,6 +347,7 @@ namespace DynamicBrowserPanels
             Controls.AddRange(new Control[] {
                 helpButton,
                 enableSyncCheckBox,
+                autoSyncGroup,
                 syncOptionsGroup,
                 authGroup,
                 statusGroup,
@@ -333,11 +371,14 @@ namespace DynamicBrowserPanels
             settings = AppConfiguration.DropboxSyncSettings;
 
             enableSyncCheckBox.Checked = settings.SyncEnabled;
+            syncOnStartupCheckBox.Checked = settings.SyncOnStartup;
+            syncOnShutdownCheckBox.Checked = settings.SyncOnShutdown;
             syncNotesCheckBox.Checked = settings.SyncNotes;
             syncPlaylistsCheckBox.Checked = settings.SyncPlaylists;
             syncTemplatesCheckBox.Checked = settings.SyncTemplates;
             syncHistoryCheckBox.Checked = settings.SyncHistory;
-            syncImagesCheckBox.Checked = settings.SyncImages; // ADD THIS
+            syncImagesCheckBox.Checked = settings.SyncImages;
+            syncUrlPadCheckBox.Checked = settings.SyncUrlPad;
             appKeyTextBox.Text = settings.AppKey;
             appSecretTextBox.Text = settings.AppSecret;
             accessTokenTextBox.Text = settings.AccessToken;
@@ -351,11 +392,14 @@ namespace DynamicBrowserPanels
         private void SaveButton_Click(object sender, EventArgs e)
         {
             settings.SyncEnabled = enableSyncCheckBox.Checked;
+            settings.SyncOnStartup = syncOnStartupCheckBox.Checked;
+            settings.SyncOnShutdown = syncOnShutdownCheckBox.Checked;
             settings.SyncNotes = syncNotesCheckBox.Checked;
             settings.SyncPlaylists = syncPlaylistsCheckBox.Checked;
             settings.SyncTemplates = syncTemplatesCheckBox.Checked;
             settings.SyncHistory = syncHistoryCheckBox.Checked;
-            settings.SyncImages = syncImagesCheckBox.Checked; // ADD THIS
+            settings.SyncImages = syncImagesCheckBox.Checked;
+            settings.SyncUrlPad = syncUrlPadCheckBox.Checked;
             settings.AppKey = appKeyTextBox.Text.Trim();
             settings.AppSecret = appSecretTextBox.Text.Trim();
             settings.AccessToken = accessTokenTextBox.Text.Trim();
@@ -376,11 +420,14 @@ namespace DynamicBrowserPanels
             bool enabled = enableSyncCheckBox.Checked;
             bool authenticated = !string.IsNullOrEmpty(accessTokenTextBox.Text);
 
+            syncOnStartupCheckBox.Enabled = enabled;
+            syncOnShutdownCheckBox.Enabled = enabled;
             syncNotesCheckBox.Enabled = enabled;
             syncPlaylistsCheckBox.Enabled = enabled;
             syncTemplatesCheckBox.Enabled = enabled;
             syncHistoryCheckBox.Enabled = enabled;
-            syncImagesCheckBox.Enabled = enabled; 
+            syncImagesCheckBox.Enabled = enabled;
+            syncUrlPadCheckBox.Enabled = enabled;
             appKeyTextBox.Enabled = enabled;
             appSecretTextBox.Enabled = enabled;
             authenticateButton.Enabled = enabled && !string.IsNullOrEmpty(appKeyTextBox.Text) && !string.IsNullOrEmpty(appSecretTextBox.Text);
@@ -428,7 +475,7 @@ namespace DynamicBrowserPanels
             try
             {
                 bool success = await DropboxSyncManagerStatic.TestConnectionAsync(accessTokenTextBox.Text.Trim());
-                
+
                 if (success)
                 {
                     statusLabel.Text = "Connection successful!";
@@ -470,7 +517,7 @@ namespace DynamicBrowserPanels
             try
             {
                 bool success = await DropboxSyncManagerStatic.RevokeAccessAsync(accessTokenTextBox.Text.Trim());
-                
+
                 if (success)
                 {
                     accessTokenTextBox.Text = string.Empty;
@@ -524,7 +571,7 @@ namespace DynamicBrowserPanels
 
             statusLabel.Text = $"{action}...";
             statusLabel.ForeColor = Color.Blue;
-            
+
             // Disable all sync buttons during operation
             syncNowButton.Enabled = false;
             pushButton.Enabled = false;
@@ -542,11 +589,14 @@ namespace DynamicBrowserPanels
                 var tempSettings = new DropboxSyncSettings
                 {
                     SyncEnabled = enableSyncCheckBox.Checked,
+                    SyncOnStartup = syncOnStartupCheckBox.Checked,
+                    SyncOnShutdown = syncOnShutdownCheckBox.Checked,
                     SyncNotes = syncNotesCheckBox.Checked,
                     SyncPlaylists = syncPlaylistsCheckBox.Checked,
                     SyncTemplates = syncTemplatesCheckBox.Checked,
                     SyncHistory = syncHistoryCheckBox.Checked,
-                    SyncImages = syncImagesCheckBox.Checked, // ADD THIS
+                    SyncImages = syncImagesCheckBox.Checked,
+                    SyncUrlPad = syncUrlPadCheckBox.Checked,
                     AccessToken = accessTokenTextBox.Text.Trim(),
                     AppKey = appKeyTextBox.Text.Trim(),
                     AppSecret = appSecretTextBox.Text.Trim()
@@ -565,20 +615,20 @@ namespace DynamicBrowserPanels
                     statusLabel.ForeColor = Color.Green;
                     lastSyncLabel.Text = $"Last sync: {result.SyncTime:yyyy-MM-dd HH:mm:ss}";
                     settings.LastSyncTime = result.SyncTime;
-                    
+
                     // Update push/pull times based on direction
-                    if (direction == DropboxSyncManagerStatic.SyncDirection.PushOnly || 
+                    if (direction == DropboxSyncManagerStatic.SyncDirection.PushOnly ||
                         direction == DropboxSyncManagerStatic.SyncDirection.Both)
                     {
                         settings.LastPushTime = result.SyncTime;
                     }
-                    
-                    if (direction == DropboxSyncManagerStatic.SyncDirection.PullOnly || 
+
+                    if (direction == DropboxSyncManagerStatic.SyncDirection.PullOnly ||
                         direction == DropboxSyncManagerStatic.SyncDirection.Both)
                     {
                         settings.LastPullTime = result.SyncTime;
                     }
-                    
+
                     // Save the updated settings
                     AppConfiguration.DropboxSyncSettings = settings;
                 }
@@ -598,7 +648,7 @@ namespace DynamicBrowserPanels
                         Height = 400,
                         StartPosition = FormStartPosition.CenterParent
                     };
-                    
+
                     var textBox = new TextBox
                     {
                         Multiline = true,
@@ -608,7 +658,7 @@ namespace DynamicBrowserPanels
                         Text = result.DetailedError,
                         Font = new Font("Consolas", 9)
                     };
-                    
+
                     errorForm.Controls.Add(textBox);
                     errorForm.ShowDialog(this);
                 }

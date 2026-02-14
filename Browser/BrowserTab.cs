@@ -306,7 +306,7 @@ namespace DynamicBrowserPanels
             UrlChanged?.Invoke(this, _webView.Source?.ToString() ?? "");
             
             // Signal that navigation is complete
-            _navigationCompletionSource?.TrySetResult(true);
+            _navigationCompletionSource?.TrySetResult(false);
 
             // Reapply mute state after navigation
             ApplyMuteState();
@@ -392,7 +392,6 @@ namespace DynamicBrowserPanels
                     {
                         HandleExportNote(json);
                     }
-                    // ADD THESE THREE IMAGE PAD HANDLERS HERE:
                     else if (json.Contains("\"loadImage\""))
                     {
                         HandleLoadImage(json);
@@ -408,6 +407,18 @@ namespace DynamicBrowserPanels
                     else if (json.Contains("\"exportImage\""))
                     {
                         HandleExportImage(json);
+                    }
+                    else if (json.Contains("\"loadUrlList\""))
+                    {
+                        HandleLoadUrlList(json);
+                    }
+                    else if (json.Contains("\"saveUrlList\""))
+                    {
+                        HandleSaveUrlList(json);
+                    }
+                    else if (json.Contains("\"exportUrlList\""))
+                    {
+                        HandleExportUrlList(json);
                     }
                 }
             }
@@ -818,7 +829,7 @@ namespace DynamicBrowserPanels
                     // Get the top-level form that contains this WebView2
                     var parentForm = _webView.FindForm();
                     
-                    if (parentForm != null)
+                    if (parentForm != null)     
                     {
                         result = dialog.ShowDialog(parentForm);
                     }
@@ -915,6 +926,202 @@ namespace DynamicBrowserPanels
             {
                 dialog?.Dispose();
                 System.Diagnostics.Debug.WriteLine("ShowExportDialog: Completed");
+            }
+        }
+
+        /// <summary>
+        /// Handles loading a URL list from JavaScript
+        /// </summary>
+        private async void HandleLoadUrlList(string json)
+        {
+            try
+            {
+                System.Diagnostics.Debug.WriteLine($"HandleLoadUrlList: Received JSON: {json}");
+                
+                using (JsonDocument document = JsonDocument.Parse(json))
+                {
+                    int urlListNumber = 1;
+                    if (document.RootElement.TryGetProperty("urlListNumber", out JsonElement listElement))
+                    {
+                        urlListNumber = listElement.GetInt32();
+                    }
+                    
+                    System.Diagnostics.Debug.WriteLine($"HandleLoadUrlList: Loading URL list number: {urlListNumber}");
+                    
+                    // Load from disk
+                    var urlList = UrlPadManager.LoadUrlList(urlListNumber);
+                    
+                    if (urlList != null)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"HandleLoadUrlList: Loaded - Title: {urlList.Title}, URL count: {urlList.Urls?.Count ?? 0}");
+                        
+                        // Serialize to JSON for JavaScript with camelCase property names
+                        var jsonOptions = new JsonSerializerOptions 
+                        { 
+                            WriteIndented = false,
+                            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+                        };
+                        var urlListJson = JsonSerializer.Serialize(urlList, jsonOptions);
+                        
+                        System.Diagnostics.Debug.WriteLine($"HandleLoadUrlList: Serialized JSON (camelCase): {urlListJson}");
+                        
+                        // Use JsonSerializer to create a properly escaped string for JavaScript
+                        var escapedJson = JsonSerializer.Serialize(urlListJson);
+                        
+                        // Call loadUrlList function - escapedJson is already a quoted, escaped string
+                        var script = $"if (typeof loadUrlList === 'function') loadUrlList(JSON.parse({escapedJson}));";
+                        
+                        System.Diagnostics.Debug.WriteLine($"HandleLoadUrlList: Executing script: {script}");
+                        
+                        await _webView.CoreWebView2.ExecuteScriptAsync(script);
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine($"HandleLoadUrlList: No saved data found for list #{urlListNumber}, sending null");
+                        
+                        // No saved data - send null
+                        var script = "if (typeof loadUrlList === 'function') loadUrlList(null);";
+                        await _webView.CoreWebView2.ExecuteScriptAsync(script);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error loading URL list: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
+            }
+        }
+
+        /// <summary>
+        /// Handles saving a URL list from JavaScript
+        /// </summary>
+        private void HandleSaveUrlList(string json)
+        {
+            try
+            {
+                System.Diagnostics.Debug.WriteLine($"HandleSaveUrlList: Received JSON: {json}");
+                
+                using (JsonDocument document = JsonDocument.Parse(json))
+                {
+                    int urlListNumber = 1;
+                    if (document.RootElement.TryGetProperty("urlListNumber", out JsonElement listElement))
+                    {
+                        urlListNumber = listElement.GetInt32();
+                    }
+                    
+                    System.Diagnostics.Debug.WriteLine($"HandleSaveUrlList: URL list number: {urlListNumber}");
+                    
+                    if (document.RootElement.TryGetProperty("urlList", out JsonElement urlListElement))
+                    {
+                        var urlListJson = urlListElement.GetRawText();
+                        System.Diagnostics.Debug.WriteLine($"HandleSaveUrlList: URL list JSON: {urlListJson}");
+                        
+                        // Configure deserializer to handle camelCase from JavaScript
+                        var deserializeOptions = new JsonSerializerOptions
+                        {
+                            PropertyNameCaseInsensitive = true
+                        };
+                        
+                        var urlList = JsonSerializer.Deserialize<UrlList>(urlListJson, deserializeOptions);
+                        
+                        if (urlList != null)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"HandleSaveUrlList: Deserialized - Title: {urlList.Title}, URL count: {urlList.Urls?.Count ?? 0}");
+                            
+                            if (urlList.Urls != null)
+                            {
+                                foreach (var url in urlList.Urls)
+                                {
+                                    System.Diagnostics.Debug.WriteLine($"  URL: {url.Url}, Display: {url.DisplayText}");
+                                }
+                            }
+                        }
+                        else
+                        {
+                            System.Diagnostics.Debug.WriteLine("HandleSaveUrlList: Deserialized urlList is NULL");
+                        }
+                        
+                        bool saveResult = UrlPadManager.SaveUrlList(urlListNumber, urlList);
+                        System.Diagnostics.Debug.WriteLine($"HandleSaveUrlList: Save result: {saveResult}");
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine("HandleSaveUrlList: No 'urlList' property found in JSON");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error saving URL list: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
+            }
+        }
+
+        /// <summary>
+        /// Handles exporting a URL list from JavaScript
+        /// </summary>
+        private void HandleExportUrlList(string json)
+        {
+            try
+            {
+                using (JsonDocument document = JsonDocument.Parse(json))
+                {
+                    int urlListNumber = 1;
+                    if (document.RootElement.TryGetProperty("urlListNumber", out JsonElement listElement))
+                    {
+                        urlListNumber = listElement.GetInt32();
+                    }
+                    
+                    if (!UrlPadManager.UrlListExists(urlListNumber))
+                    {
+                        MessageBox.Show(
+                            "No URLs to export.",
+                            "Export URLs",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Information
+                        );
+                        return;
+                    }
+                    
+                    using (var dialog = new SaveFileDialog())
+                    {
+                        dialog.Filter = "JSON Files (*.json)|*.json|All Files (*.*)|*.*";
+                        dialog.DefaultExt = "json";
+                        dialog.FileName = $"UrlPad_{urlListNumber:D4}_{DateTime.Now:yyyy-MM-dd_HHmmss}.json";
+                        dialog.Title = "Export URLs";
+                        
+                        if (dialog.ShowDialog() == DialogResult.OK)
+                        {
+                            if (UrlPadManager.ExportUrlList(urlListNumber, dialog.FileName))
+                            {
+                                MessageBox.Show(
+                                    $"URLs exported successfully to:\n{dialog.FileName}",
+                                    "Export Complete",
+                                    MessageBoxButtons.OK,
+                                    MessageBoxIcon.Information
+                                );
+                            }
+                            else
+                            {
+                                MessageBox.Show(
+                                    "Failed to export URLs.",
+                                    "Export Error",
+                                    MessageBoxButtons.OK,
+                                    MessageBoxIcon.Error
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"Failed to export URLs: {ex.Message}",
+                    "Export Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error
+                );
             }
         }
 

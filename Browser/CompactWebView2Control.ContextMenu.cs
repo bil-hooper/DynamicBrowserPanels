@@ -57,6 +57,9 @@ namespace DynamicBrowserPanels
 
             mnuOpenImagePad = new ToolStripMenuItem("🖼️ Open Image Pad");
             mnuOpenImagePad.Click += (s, e) => OpenImagePad();
+
+            mnuOpenUrlPad = new ToolStripMenuItem("🔗 Open UrlPad");
+            mnuOpenUrlPad.Click += (s, e) => OpenUrlPad();
             
             // Timer menu
             mnuTimer = new ToolStripMenuItem("⏱ Timer");
@@ -201,6 +204,7 @@ namespace DynamicBrowserPanels
                 new ToolStripSeparator(),
                 mnuOpenNotepad,
                 mnuOpenImagePad,
+                mnuOpenUrlPad,
                 new ToolStripSeparator(),
                 mnuOpenMedia,
                 mnuOpenMediaLoop,
@@ -433,6 +437,43 @@ namespace DynamicBrowserPanels
                 MessageBox.Show(
                     $"Failed to open image pad: {ex.Message}",
                     "Image Pad Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error
+                );
+            }
+        }
+
+        /// <summary>
+        /// Opens the UrlPad
+        /// </summary>
+        private void OpenUrlPad()
+        {
+            try
+            {
+                var currentTab = GetCurrentTab();
+                if (currentTab == null) return;
+                
+                // Create the UrlPad HTML file
+                var htmlPath = UrlPadHelper.CreateUrlPadHtml();
+                
+                // Navigate to URL list #1 by default
+                var url = LocalMediaHelper.FilePathToUrl(htmlPath) + "?list=1";
+                NavigateToUrl(url);
+                
+                // Set custom tab name
+                int selectedIndex = tabControl.SelectedIndex;
+                if (selectedIndex >= 0 && selectedIndex < _tabCustomNames.Count)
+                {
+                    _tabCustomNames[selectedIndex] = "UrlPad";
+                    currentTab.CustomName = "UrlPad";
+                    tabControl.TabPages[selectedIndex].Text = "UrlPad";
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"Failed to open UrlPad: {ex.Message}",
+                    "UrlPad Error",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Error
                 );

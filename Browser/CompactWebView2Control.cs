@@ -29,6 +29,7 @@ namespace DynamicBrowserPanels
         private ToolStripMenuItem mnuPlaylistControls;
         private ToolStripMenuItem mnuOpenNotepad;
         private ToolStripMenuItem mnuOpenImagePad;
+        private ToolStripMenuItem mnuOpenUrlPad;
         private ToolStripMenuItem mnuTimer;
         private ToolStripMenuItem mnuNewTab;
         private ToolStripMenuItem mnuCloseTab;
