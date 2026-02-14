@@ -392,6 +392,23 @@ namespace DynamicBrowserPanels
                     {
                         HandleExportNote(json);
                     }
+                    // ADD THESE THREE IMAGE PAD HANDLERS HERE:
+                    else if (json.Contains("\"loadImage\""))
+                    {
+                        HandleLoadImage(json);
+                    }
+                    else if (json.Contains("\"saveImage\""))
+                    {
+                        HandleSaveImage(json);
+                    }
+                    else if (json.Contains("\"deleteImage\""))
+                    {
+                        HandleDeleteImage(json);
+                    }
+                    else if (json.Contains("\"exportImage\""))
+                    {
+                        HandleExportImage(json);
+                    }
                 }
             }
             catch
@@ -587,6 +604,317 @@ namespace DynamicBrowserPanels
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Error
                 );
+            }
+        }
+
+        /// <summary>
+        /// Handles loading an image from JavaScript
+        /// </summary>
+        private async void HandleLoadImage(string json)
+        {
+            try
+            {
+                using (JsonDocument document = JsonDocument.Parse(json))
+                {
+                    int imageNumber = 1;
+                    if (document.RootElement.TryGetProperty("imageNumber", out JsonElement imageElement))
+                    {
+                        imageNumber = imageElement.GetInt32();
+                    }
+                    
+                    // Load from disk
+                    var base64Data = ImagePadManager.LoadImage(imageNumber);
+                    
+                    // Escape for JavaScript (handle null case)
+                    var escaped = base64Data != null 
+                        ? base64Data.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\n", "\\n").Replace("\r", "\\r")
+                        : "null";
+                    
+                    // Call loadImage function - pass null if no image exists
+                    var script = base64Data != null
+                        ? $"if (typeof loadImage === 'function') loadImage(\"{escaped}\");"
+                        : "if (typeof loadImage === 'function') loadImage(null);";
+                    
+                    await _webView.CoreWebView2.ExecuteScriptAsync(script);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error loading image: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Handles saving an image from JavaScript
+        /// </summary>
+        private void HandleSaveImage(string json)
+        {
+            try
+            {
+                using (JsonDocument document = JsonDocument.Parse(json))
+                {
+                    int imageNumber = 1;
+                    if (document.RootElement.TryGetProperty("imageNumber", out JsonElement imageElement))
+                    {
+                        imageNumber = imageElement.GetInt32();
+                    }
+                    
+                    if (document.RootElement.TryGetProperty("base64Data", out JsonElement dataElement))
+                    {
+                        var base64Data = dataElement.GetString() ?? string.Empty;
+                        ImagePadManager.SaveImage(imageNumber, base64Data);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error saving image: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Handles deleting an image from JavaScript
+        /// </summary>
+        private void HandleDeleteImage(string json)
+        {
+            try
+            {
+                using (JsonDocument document = JsonDocument.Parse(json))
+                {
+                    int imageNumber = 1;
+                    if (document.RootElement.TryGetProperty("imageNumber", out JsonElement imageElement))
+                    {
+                        imageNumber = imageElement.GetInt32();
+                    }
+                    
+                    ImagePadManager.DeleteImage(imageNumber);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error deleting image: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Handles exporting an image from JavaScript
+        /// </summary>
+        private void HandleExportImage(string json)
+        {
+            try
+            {
+                using (JsonDocument document = JsonDocument.Parse(json))
+                {
+                    int imageNumber = 1;
+                    if (document.RootElement.TryGetProperty("imageNumber", out JsonElement imageElement))
+                    {
+                        imageNumber = imageElement.GetInt32();
+                    }
+                    
+                    if (!ImagePadManager.ImageExists(imageNumber))
+                    {
+                        // Marshal to UI thread for MessageBox
+                        if (_webView.InvokeRequired)
+                        {
+                            _webView.BeginInvoke(new Action(() =>
+                            {
+                                MessageBox.Show(
+                                    "No image to export.",
+                                    "Export Image",
+                                    MessageBoxButtons.OK,
+                                    MessageBoxIcon.Information
+                                );
+                            }));
+                        }
+                        else
+                        {
+                            MessageBox.Show(
+                                "No image to export.",
+                                "Export Image",
+                                MessageBoxButtons.OK,
+                                MessageBoxIcon.Information
+                            );
+                        }
+                        return;
+                    }
+                    
+                    // CRITICAL FIX: Use a timer to defer the dialog show until after WebView2 message processing completes
+                    // This prevents COM threading issues that cause native crashes
+                    var timer = new System.Windows.Forms.Timer();
+                    timer.Interval = 10; // Very short delay, just enough to let WebView2 finish processing
+                    timer.Tick += (s, e) =>
+                    {
+                        timer.Stop();
+                        timer.Dispose();
+                        ShowExportDialog(imageNumber);
+                    };
+                    timer.Start();
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in HandleExportImage: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
+                
+                // Marshal error message to UI thread
+                if (_webView.InvokeRequired)
+                {
+                    _webView.BeginInvoke(new Action(() =>
+                    {
+                        MessageBox.Show(
+                            $"Failed to export image: {ex.Message}",
+                            "Export Error",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Error
+                        );
+                    }));
+                }
+                else
+                {
+                    MessageBox.Show(
+                        $"Failed to export image: {ex.Message}",
+                        "Export Error",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Error
+                    );
+                }
+            }
+        }
+
+        /// <summary>
+        /// Shows the export dialog (must be called on UI thread)
+        /// </summary>
+        private void ShowExportDialog(int imageNumber)
+        {
+            SaveFileDialog dialog = null;
+            try
+            {
+                System.Diagnostics.Debug.WriteLine($"ShowExportDialog: Starting for image {imageNumber}");
+                
+                dialog = new SaveFileDialog();
+                dialog.Filter = "PNG Image (*.png)|*.png|" +
+                              "JPEG Image (*.jpg;*.jpeg)|*.jpg;*.jpeg|" +
+                              "BMP Image (*.bmp)|*.bmp|" +
+                              "All Files (*.*)|*.*";
+                dialog.DefaultExt = "png";
+                dialog.FileName = $"Image_{imageNumber}_{DateTime.Now:yyyy-MM-dd_HHmmss}";
+                dialog.Title = "Export Image";
+                
+                try
+                {
+                    dialog.InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Failed to set InitialDirectory: {ex.Message}");
+                    // Continue without initial directory
+                }
+                
+                System.Diagnostics.Debug.WriteLine("ShowExportDialog: About to show dialog");
+                
+                DialogResult result;
+                try
+                {
+                    // Get the top-level form that contains this WebView2
+                    var parentForm = _webView.FindForm();
+                    
+                    if (parentForm != null)
+                    {
+                        result = dialog.ShowDialog(parentForm);
+                    }
+                    else
+                    {
+                        // Fallback if we can't find the parent form
+                        result = dialog.ShowDialog();
+                    }
+                    
+                    System.Diagnostics.Debug.WriteLine($"ShowExportDialog: Dialog closed with result: {result}");
+                }
+                catch (Exception dialogEx)
+                {
+                    System.Diagnostics.Debug.WriteLine($"EXCEPTION in ShowDialog: {dialogEx.GetType().Name}");
+                    System.Diagnostics.Debug.WriteLine($"Message: {dialogEx.Message}");
+                    System.Diagnostics.Debug.WriteLine($"Stack trace: {dialogEx.StackTrace}");
+                    
+                    MessageBox.Show(
+                        $"Error showing file dialog:\n{dialogEx.GetType().Name}\n{dialogEx.Message}",
+                        "Dialog Error",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Error
+                    );
+                    return;
+                }
+                
+                if (result == DialogResult.OK)
+                {
+                    try
+                    {
+                        System.Diagnostics.Debug.WriteLine($"ShowExportDialog: User selected: {dialog.FileName}");
+                        
+                        // Determine format from filter index
+                        System.Drawing.Imaging.ImageFormat format = dialog.FilterIndex switch
+                        {
+                            1 => System.Drawing.Imaging.ImageFormat.Png,
+                            2 => System.Drawing.Imaging.ImageFormat.Jpeg,
+                            3 => System.Drawing.Imaging.ImageFormat.Bmp,
+                            _ => System.Drawing.Imaging.ImageFormat.Png
+                        };
+                        
+                        System.Diagnostics.Debug.WriteLine($"ShowExportDialog: Exporting as format: {format}");
+                        
+                        if (ImagePadManager.ExportImage(imageNumber, dialog.FileName, format))
+                        {
+                            MessageBox.Show(
+                                $"Image exported successfully to:\n{dialog.FileName}",
+                                "Export Complete",
+                                MessageBoxButtons.OK,
+                                MessageBoxIcon.Information
+                            );
+                        }
+                        else
+                        {
+                            MessageBox.Show(
+                                "Failed to export image.",
+                                "Export Error",
+                                MessageBoxButtons.OK,
+                                MessageBoxIcon.Error
+                            );
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Export failed: {ex.Message}");
+                        System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
+                        MessageBox.Show(
+                            $"Failed to export image:\n{ex.Message}",
+                            "Export Error",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Error
+                        );
+                    }
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine("ShowExportDialog: User cancelled");
+                }
+            }
+            catch (Exception outerEx)
+            {
+                System.Diagnostics.Debug.WriteLine($"OUTER EXCEPTION in ShowExportDialog: {outerEx.GetType().Name}");
+                System.Diagnostics.Debug.WriteLine($"Message: {outerEx.Message}");
+                System.Diagnostics.Debug.WriteLine($"Stack trace: {outerEx.StackTrace}");
+                
+                MessageBox.Show(
+                    $"Unexpected error in export dialog:\n{outerEx.GetType().Name}\n{outerEx.Message}",
+                    "Unexpected Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error
+                );
+            }
+            finally
+            {
+                dialog?.Dispose();
+                System.Diagnostics.Debug.WriteLine("ShowExportDialog: Completed");
             }
         }
 

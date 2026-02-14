@@ -54,6 +54,9 @@ namespace DynamicBrowserPanels
 
             mnuOpenNotepad = new ToolStripMenuItem("📝 Open Notepad");
             mnuOpenNotepad.Click += (s, e) => OpenNotepad();
+
+            mnuOpenImagePad = new ToolStripMenuItem("🖼️ Open Image Pad");
+            mnuOpenImagePad.Click += (s, e) => OpenImagePad();
             
             // Timer menu
             mnuTimer = new ToolStripMenuItem("⏱ Timer");
@@ -197,6 +200,7 @@ namespace DynamicBrowserPanels
                 mnuHistory,
                 new ToolStripSeparator(),
                 mnuOpenNotepad,
+                mnuOpenImagePad,
                 new ToolStripSeparator(),
                 mnuOpenMedia,
                 mnuOpenMediaLoop,
@@ -392,6 +396,43 @@ namespace DynamicBrowserPanels
                 MessageBox.Show(
                     $"Failed to open notepad: {ex.Message}",
                     "Notepad Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error
+                );
+            }
+        }
+
+        /// <summary>
+        /// Opens the image pad
+        /// </summary>
+        private void OpenImagePad()
+        {
+            try
+            {
+                var currentTab = GetCurrentTab();
+                if (currentTab == null) return;
+                
+                // Create the image pad HTML file
+                var htmlPath = ImagePadHelper.CreateImagePadHtml();
+                
+                // Navigate to image #1 by default
+                var url = LocalMediaHelper.FilePathToUrl(htmlPath) + "?image=1";
+                NavigateToUrl(url);
+                
+                // Set custom tab name
+                int selectedIndex = tabControl.SelectedIndex;
+                if (selectedIndex >= 0 && selectedIndex < _tabCustomNames.Count)
+                {
+                    _tabCustomNames[selectedIndex] = "Image Pad";
+                    currentTab.CustomName = "Image Pad";
+                    tabControl.TabPages[selectedIndex].Text = "Image Pad";
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"Failed to open image pad: {ex.Message}",
+                    "Image Pad Error",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Error
                 );

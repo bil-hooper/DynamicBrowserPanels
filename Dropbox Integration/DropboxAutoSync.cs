@@ -69,6 +69,13 @@ namespace DynamicBrowserPanels
                         tasks.Add(manager.SyncFolderAsync("/History", historyDir));
                     }
 
+                    // Sync images
+                    if (settings.SyncImages)
+                    {
+                        var imagesDir = Path.Combine(baseDir, "Images");
+                        tasks.Add(manager.SyncFolderAsync("/Images", imagesDir));
+                    }
+
                     // Wait for all background syncs to complete
                     await Task.WhenAll(tasks);
 

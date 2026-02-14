@@ -29,9 +29,10 @@
     <!-- Microsoft Edge WebView2 SDK -->
     <PackageReference Include="Dropbox.Api" Version="7.0.0" />
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3719.77" />
+    <PackageReference Include="System.Drawing.Common" Version="10.0.3" />
     
     <!-- System.Text.Json for state serialization -->
-    <PackageReference Include="System.Text.Json" Version="10.0.2" />
+    <PackageReference Include="System.Text.Json" Version="10.0.3" />
   </ItemGroup>
 
 </Project>

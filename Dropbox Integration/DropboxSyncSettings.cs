@@ -53,6 +53,11 @@ namespace DynamicBrowserPanels
         public bool SyncHistory { get; set; } = false;
 
         /// <summary>
+        /// Whether to sync Images folder
+        /// </summary>
+        public bool SyncImages { get; set; } = false;
+
+        /// <summary>
         /// Last successful sync timestamp (for display purposes)
         /// </summary>
         public DateTime? LastSyncTime { get; set; } = null;

@@ -15,6 +15,7 @@ namespace DynamicBrowserPanels
         private CheckBox syncPlaylistsCheckBox;
         private CheckBox syncTemplatesCheckBox;
         private CheckBox syncHistoryCheckBox;
+        private CheckBox syncImagesCheckBox;
         private TextBox accessTokenTextBox;
         private TextBox appKeyTextBox;
         private TextBox appSecretTextBox;
@@ -104,11 +105,22 @@ namespace DynamicBrowserPanels
             syncHistoryCheckBox = new CheckBox
             {
                 Text = "History",
-                Location = new Point(200, 55),
+                Location = new Point(20, 97),
                 Size = new Size(150, 24)
             };
 
-            syncOptionsGroup.Controls.AddRange(new Control[] { syncNotesCheckBox, syncPlaylistsCheckBox, syncTemplatesCheckBox, syncHistoryCheckBox });
+            syncImagesCheckBox = new CheckBox
+            {
+                Text = "Images",
+                Location = new Point(170, 97),
+                Size = new Size(150, 24)
+            };
+            
+            syncOptionsGroup.Controls.Add(syncNotesCheckBox);
+            syncOptionsGroup.Controls.Add(syncPlaylistsCheckBox);
+            syncOptionsGroup.Controls.Add(syncTemplatesCheckBox);
+            syncOptionsGroup.Controls.Add(syncHistoryCheckBox);
+            syncOptionsGroup.Controls.Add(syncImagesCheckBox); // ADD THIS
 
             // Authentication Group - moved down by 30px
             var authGroup = new GroupBox
@@ -325,6 +337,7 @@ namespace DynamicBrowserPanels
             syncPlaylistsCheckBox.Checked = settings.SyncPlaylists;
             syncTemplatesCheckBox.Checked = settings.SyncTemplates;
             syncHistoryCheckBox.Checked = settings.SyncHistory;
+            syncImagesCheckBox.Checked = settings.SyncImages; // ADD THIS
             appKeyTextBox.Text = settings.AppKey;
             appSecretTextBox.Text = settings.AppSecret;
             accessTokenTextBox.Text = settings.AccessToken;
@@ -342,6 +355,7 @@ namespace DynamicBrowserPanels
             settings.SyncPlaylists = syncPlaylistsCheckBox.Checked;
             settings.SyncTemplates = syncTemplatesCheckBox.Checked;
             settings.SyncHistory = syncHistoryCheckBox.Checked;
+            settings.SyncImages = syncImagesCheckBox.Checked; // ADD THIS
             settings.AppKey = appKeyTextBox.Text.Trim();
             settings.AppSecret = appSecretTextBox.Text.Trim();
             settings.AccessToken = accessTokenTextBox.Text.Trim();
@@ -366,6 +380,7 @@ namespace DynamicBrowserPanels
             syncPlaylistsCheckBox.Enabled = enabled;
             syncTemplatesCheckBox.Enabled = enabled;
             syncHistoryCheckBox.Enabled = enabled;
+            syncImagesCheckBox.Enabled = enabled; 
             appKeyTextBox.Enabled = enabled;
             appSecretTextBox.Enabled = enabled;
             authenticateButton.Enabled = enabled && !string.IsNullOrEmpty(appKeyTextBox.Text) && !string.IsNullOrEmpty(appSecretTextBox.Text);
@@ -531,6 +546,7 @@ namespace DynamicBrowserPanels
                     SyncPlaylists = syncPlaylistsCheckBox.Checked,
                     SyncTemplates = syncTemplatesCheckBox.Checked,
                     SyncHistory = syncHistoryCheckBox.Checked,
+                    SyncImages = syncImagesCheckBox.Checked, // ADD THIS
                     AccessToken = accessTokenTextBox.Text.Trim(),
                     AppKey = appKeyTextBox.Text.Trim(),
                     AppSecret = appSecretTextBox.Text.Trim()

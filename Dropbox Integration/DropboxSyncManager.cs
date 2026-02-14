@@ -150,6 +150,7 @@ namespace DynamicBrowserPanels
         private const string PlaylistsFolder = "/Playlists";
         private const string TemplatesFolder = "/Templates";
         private const string HistoryFolder = "/History";
+        private const string ImagesFolder = "/Images"; // ADD THIS
 
         private static readonly string AppDataDirectory = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -160,6 +161,7 @@ namespace DynamicBrowserPanels
         private static readonly string PlaylistsDirectory = Path.Combine(AppDataDirectory, "Playlists");
         private static readonly string TemplatesDirectory = Path.Combine(AppDataDirectory, "Templates");
         private static readonly string HistoryDirectory = Path.Combine(AppDataDirectory, "History");
+        private static readonly string ImagesDirectory = Path.Combine(AppDataDirectory, "Images"); // ADD THIS
 
         /// <summary>
         /// Sync direction options
@@ -269,6 +271,20 @@ namespace DynamicBrowserPanels
                         progress?.Report(action + "...");
                         await SyncFolderAsync(dbx, HistoryDirectory, HistoryFolder, direction, sinceDate);
                         result.HistoryCount++;
+                    }
+
+                    // ADD THIS SECTION:
+                    if (settings.SyncImages)
+                    {
+                        string action = direction switch
+                        {
+                            SyncDirection.PushOnly => "Pushing Images to Dropbox",
+                            SyncDirection.PullOnly => "Pulling Images from Dropbox",
+                            _ => "Synchronizing Images"
+                        };
+                        progress?.Report(action + "...");
+                        await SyncFolderAsync(dbx, ImagesDirectory, ImagesFolder, direction, sinceDate);
+                        result.ImagesCount++;
                     }
 
                     result.Message = direction switch
@@ -572,6 +588,7 @@ namespace DynamicBrowserPanels
         public int PlaylistsCount { get; set; }
         public int TemplatesCount { get; set; }
         public int HistoryCount { get; set; }
+        public int ImagesCount { get; set; } // ADD THIS
         public string DetailedError { get; set; }
         public Exception Exception { get; set; }
     }

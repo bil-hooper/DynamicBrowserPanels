@@ -472,6 +472,10 @@ namespace DynamicBrowserPanels
                 // Add the split container to parent first so it has a size
                 parentPanel.Controls.Add(splitContainer);
 
+                // Force layout to occur so splitContainer gets its actual size
+                splitContainer.PerformLayout();
+                Application.DoEvents(); // Optional: Ensure all pending Windows messages are processed
+
                 // Calculate and set splitter distance
                 splitContainer.SplitterDistance = CalculateSplitterDistance(
                     splitContainer,
@@ -513,6 +517,21 @@ namespace DynamicBrowserPanels
             int currentSize = orientation == Orientation.Vertical
                 ? splitContainer.Width
                 : splitContainer.Height;
+
+            // Ensure we have a valid size
+            if (currentSize <= 0)
+            {
+                return 100; // Return a safe default
+            }
+
+            int preMinDistance = splitContainer.Panel1MinSize;
+            int preMaxDistance = currentSize - splitContainer.Panel2MinSize;
+
+            // Additional safety check
+            if (preMaxDistance <= preMinDistance)
+            {
+                return Math.Max(25, currentSize / 2); // Safe fallback
+            }
 
             // If we have saved values, try to maintain the same ratio
             if (savedDistance > 0 && savedPanelSize > 0)
