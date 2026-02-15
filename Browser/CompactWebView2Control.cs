@@ -56,6 +56,7 @@ namespace DynamicBrowserPanels
         private ToolStripMenuItem mnuRemoveTemplateProtection;
         private ToolStripMenuItem mnuKeepAwake;
         private ToolStripMenuItem mnuAutoRepeatTimer;
+        private ToolStripMenuItem mnuPasswordGenerator;
 
         // Tab management
         private List<BrowserTab> _browserTabs = new List<BrowserTab>();

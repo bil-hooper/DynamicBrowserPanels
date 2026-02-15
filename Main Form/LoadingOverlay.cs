@@ -25,7 +25,7 @@ namespace DynamicBrowserPanels
             {
                 AutoSize = false,
                 TextAlign = ContentAlignment.MiddleCenter,
-                ForeColor = Color.White,
+                ForeColor = Color.FromArgb(135, 206, 250), // Light Sky Blue
                 Font = new Font("Segoe UI", 12F, FontStyle.Regular),
                 Text = "Loading...",
                 Dock = DockStyle.Bottom,
@@ -109,8 +109,8 @@ namespace DynamicBrowserPanels
             int centerX = Width / 2;
             int centerY = (Height - _statusLabel.Height) / 2;
 
-            // Draw rotating arc (modern spinner)
-            using (var pen = new Pen(Color.FromArgb(255, 100, 150, 255), 4))
+            // Draw rotating arc (modern spinner) - using purple theme
+            using (var pen = new Pen(Color.FromArgb(255, 147, 112, 219), 4)) // Medium Purple
             {
                 pen.StartCap = System.Drawing.Drawing2D.LineCap.Round;
                 pen.EndCap = System.Drawing.Drawing2D.LineCap.Round;

@@ -66,7 +66,7 @@ namespace DynamicBrowserPanels
         }
 
         .toolbar button {
-            background: #0e639c;
+            background: #9370DB;
             color: white;
             border: none;
             padding: 6px 12px;
@@ -76,7 +76,7 @@ namespace DynamicBrowserPanels
         }
 
         .toolbar button:hover {
-            background: #1177bb;
+            background: #8A2BE2;
         }
 
         .toolbar button:disabled {

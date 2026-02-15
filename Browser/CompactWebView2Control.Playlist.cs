@@ -794,11 +794,14 @@ namespace DynamicBrowserPanels
                 form.Text = "Local Playlist";
                 form.Size = new Size(600, 400);
                 form.StartPosition = FormStartPosition.CenterParent;
+                form.BackColor = AppColors.PrimaryAccentLight;
 
                 var listBox = new ListBox
                 {
                     Dock = DockStyle.Fill,
-                    Font = new Font("Consolas", 10)
+                    Font = new Font("Consolas", 10),
+                    BackColor = AppColors.PrimaryAccentLight,
+                    BorderStyle = BorderStyle.FixedSingle
                 };
 
                 for (int i = 0; i < currentTab.Playlist.MediaFiles.Count; i++)
@@ -841,11 +844,14 @@ namespace DynamicBrowserPanels
                 form.Text = "Online Playlist";
                 form.Size = new Size(600, 400);
                 form.StartPosition = FormStartPosition.CenterParent;
+                form.BackColor = AppColors.PrimaryAccentLight;
 
                 var listBox = new ListBox
                 {
                     Dock = DockStyle.Fill,
-                    Font = new Font("Consolas", 10)
+                    Font = new Font("Consolas", 10),
+                    BackColor = AppColors.PrimaryAccentLight,
+                    BorderStyle = BorderStyle.FixedSingle
                 };
 
                 for (int i = 0; i < currentTab.OnlinePlaylist.MediaItems.Count; i++)

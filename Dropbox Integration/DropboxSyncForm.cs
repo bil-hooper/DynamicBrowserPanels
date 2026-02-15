@@ -54,7 +54,7 @@ namespace DynamicBrowserPanels
             MaximizeBox = false;
             MinimizeBox = false;
 
-            // Help button (top-right, like a "?" button)
+            // Help button (top-right, like a "?" button)       
             helpButton = new Button
             {
                 Text = "?",
@@ -64,7 +64,7 @@ namespace DynamicBrowserPanels
                 FlatStyle = FlatStyle.Flat,
                 Cursor = Cursors.Hand
             };
-            helpButton.FlatAppearance.BorderColor = Color.FromArgb(0, 97, 255);
+            helpButton.FlatAppearance.BorderColor = AppColors.PrimaryAccent;
             helpButton.Click += HelpButton_Click;
 
             // Enable Sync Checkbox
@@ -280,10 +280,10 @@ namespace DynamicBrowserPanels
                 Text = "↑ Push to Dropbox",
                 Location = new Point(190, 85),
                 Size = new Size(160, 30),
-                BackColor = Color.FromArgb(230, 247, 255),
+                BackColor = AppColors.ButtonPrimaryBg,
                 FlatStyle = FlatStyle.Flat
             };
-            pushButton.FlatAppearance.BorderColor = Color.FromArgb(0, 97, 255);
+            pushButton.FlatAppearance.BorderColor = AppColors.PrimaryAccent;
             pushButton.Click += PushButton_Click;
 
             pullButton = new Button
@@ -291,10 +291,10 @@ namespace DynamicBrowserPanels
                 Text = "↓ Pull from Dropbox",
                 Location = new Point(360, 85),
                 Size = new Size(160, 30),
-                BackColor = Color.FromArgb(255, 247, 230),
+                BackColor = AppColors.ButtonPrimaryBg,
                 FlatStyle = FlatStyle.Flat
             };
-            pullButton.FlatAppearance.BorderColor = Color.FromArgb(255, 153, 0);
+            pullButton.FlatAppearance.BorderColor = AppColors.PrimaryAccent;
             pullButton.Click += PullButton_Click;
 
             statusGroup.Controls.AddRange(new Control[] {
@@ -412,7 +412,7 @@ namespace DynamicBrowserPanels
             AppConfiguration.DropboxSyncSettings = settings;
 
             statusLabel.Text = "Settings saved successfully";
-            statusLabel.ForeColor = Color.Green;
+            statusLabel.ForeColor = AppColors.StatusSuccess;
         }
 
         private void EnableSyncCheckBox_CheckedChanged(object sender, EventArgs e)
@@ -446,7 +446,7 @@ namespace DynamicBrowserPanels
         private async void AuthenticateButton_Click(object sender, EventArgs e)
         {
             statusLabel.Text = "Opening Dropbox authentication...";
-            statusLabel.ForeColor = Color.Blue;
+            statusLabel.ForeColor = AppColors.StatusInfo;
 
             try
             {
@@ -455,26 +455,26 @@ namespace DynamicBrowserPanels
                 {
                     accessTokenTextBox.Text = authForm.AccessToken;
                     statusLabel.Text = "Authentication successful!";
-                    statusLabel.ForeColor = Color.Green;
+                    statusLabel.ForeColor = AppColors.StatusSuccess;
                     UpdateUIState();
                 }
                 else
                 {
                     statusLabel.Text = "Authentication cancelled";
-                    statusLabel.ForeColor = Color.Orange;
+                    statusLabel.ForeColor = AppColors.StatusWarning;
                 }
             }
             catch (Exception ex)
             {
                 statusLabel.Text = $"Authentication failed: {ex.Message}";
-                statusLabel.ForeColor = Color.Red;
+                statusLabel.ForeColor = AppColors.StatusError;
             }
         }
 
         private async void TestConnectionButton_Click(object sender, EventArgs e)
         {
             statusLabel.Text = "Testing connection...";
-            statusLabel.ForeColor = Color.Blue;
+            statusLabel.ForeColor = AppColors.StatusInfo;
             testConnectionButton.Enabled = false;
 
             try
@@ -484,18 +484,18 @@ namespace DynamicBrowserPanels
                 if (success)
                 {
                     statusLabel.Text = "Connection successful!";
-                    statusLabel.ForeColor = Color.Green;
+                    statusLabel.ForeColor = AppColors.StatusSuccess;
                 }
                 else
                 {
                     statusLabel.Text = "Connection failed - Invalid token";
-                    statusLabel.ForeColor = Color.Red;
+                    statusLabel.ForeColor = AppColors.StatusError;
                 }
             }
             catch (Exception ex)
             {
                 statusLabel.Text = $"Connection failed: {ex.Message}";
-                statusLabel.ForeColor = Color.Red;
+                statusLabel.ForeColor = AppColors.StatusError;
             }
             finally
             {
@@ -516,7 +516,7 @@ namespace DynamicBrowserPanels
                 return;
 
             statusLabel.Text = "Revoking access...";
-            statusLabel.ForeColor = Color.Blue;
+            statusLabel.ForeColor = AppColors.StatusInfo;
             revokeAccessButton.Enabled = false;
 
             try
@@ -527,19 +527,19 @@ namespace DynamicBrowserPanels
                 {
                     accessTokenTextBox.Text = string.Empty;
                     statusLabel.Text = "Access revoked successfully";
-                    statusLabel.ForeColor = Color.Green;
+                    statusLabel.ForeColor = AppColors.StatusSuccess;
                     UpdateUIState();
                 }
                 else
                 {
                     statusLabel.Text = "Failed to revoke access";
-                    statusLabel.ForeColor = Color.Red;
+                    statusLabel.ForeColor = AppColors.StatusError;
                 }
             }
             catch (Exception ex)
             {
                 statusLabel.Text = $"Error: {ex.Message}";
-                statusLabel.ForeColor = Color.Red;
+                statusLabel.ForeColor = AppColors.StatusError;
             }
             finally
             {
@@ -575,7 +575,7 @@ namespace DynamicBrowserPanels
             };
 
             statusLabel.Text = $"{action}...";
-            statusLabel.ForeColor = Color.Blue;
+            statusLabel.ForeColor = AppColors.StatusInfo;
 
             // Disable all sync buttons during operation
             syncNowButton.Enabled = false;
@@ -617,7 +617,7 @@ namespace DynamicBrowserPanels
                 if (result.Success)
                 {
                     statusLabel.Text = result.Message;
-                    statusLabel.ForeColor = Color.Green;
+                    statusLabel.ForeColor = AppColors.StatusSuccess;
                     lastSyncLabel.Text = $"Last sync: {result.SyncTime:yyyy-MM-dd HH:mm:ss}";
                     settings.LastSyncTime = result.SyncTime;
 
@@ -640,7 +640,7 @@ namespace DynamicBrowserPanels
                 else
                 {
                     statusLabel.Text = result.Message;
-                    statusLabel.ForeColor = Color.Red;
+                    statusLabel.ForeColor = AppColors.StatusError;
                 }
 
                 // After sync completes
@@ -671,7 +671,7 @@ namespace DynamicBrowserPanels
             catch (Exception ex)
             {
                 statusLabel.Text = $"{action} failed: {ex.Message}";
-                statusLabel.ForeColor = Color.Red;
+                statusLabel.ForeColor = AppColors.StatusError;
             }
             finally
             {

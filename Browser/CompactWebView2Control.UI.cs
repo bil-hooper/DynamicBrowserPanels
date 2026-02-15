@@ -64,24 +64,18 @@ namespace DynamicBrowserPanels
             TabPage tabPage = tabControl.TabPages[e.Index];
             Rectangle tabBounds = tabControl.GetTabRect(e.Index);
 
-            // Define alternating colors - subtle tones
-            Color evenColor = Color.FromArgb(252, 252, 255);      // Even lighter
-            Color oddColor = Color.FromArgb(250, 248, 252);       // Even lighter
-            Color selectedEvenColor = Color.FromArgb(230, 230, 245); // Slightly darker blue-white
-            Color selectedOddColor = Color.FromArgb(235, 225, 245);  // Slightly darker purple-white
-
             // Determine if this tab is selected
             bool isSelected = (e.Index == tabControl.SelectedIndex);
 
-            // Choose color based on index (even/odd) and selection state
+            // Choose color based on index (even/odd) and selection state using AppColors
             Color backColor;
             if (isSelected)
             {
-                backColor = (e.Index % 2 == 0) ? selectedEvenColor : selectedOddColor;
+                backColor = (e.Index % 2 == 0) ? AppColors.TabSelectedEven : AppColors.TabSelectedOdd;
             }
             else
             {
-                backColor = (e.Index % 2 == 0) ? evenColor : oddColor;
+                backColor = (e.Index % 2 == 0) ? AppColors.TabEven : AppColors.TabOdd;
             }
 
             // Fill the tab background
@@ -93,7 +87,7 @@ namespace DynamicBrowserPanels
             // Draw border around selected tab
             if (isSelected)
             {
-                using (Pen pen = new Pen(Color.FromArgb(180, 180, 220), 2))
+                using (Pen pen = new Pen(AppColors.TabBorderSelected, 2))
                 {
                     g.DrawRectangle(pen, tabBounds.X, tabBounds.Y, tabBounds.Width - 1, tabBounds.Height - 1);
                 }
@@ -101,7 +95,7 @@ namespace DynamicBrowserPanels
             else
             {
                 // Draw subtle border for non-selected tabs
-                using (Pen pen = new Pen(Color.FromArgb(220, 220, 230), 1))
+                using (Pen pen = new Pen(AppColors.TabBorderNormal, 1))
                 {
                     g.DrawRectangle(pen, tabBounds.X, tabBounds.Y, tabBounds.Width - 1, tabBounds.Height - 1);
                 }

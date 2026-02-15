@@ -159,6 +159,10 @@ namespace DynamicBrowserPanels
             mnuManagePasswords = new ToolStripMenuItem("🔑 Manage Passwords");
             mnuManagePasswords.Click += (s, e) => OpenPasswordManager();
 
+            // Add password generator option
+            mnuPasswordGenerator = new ToolStripMenuItem("🔐 Password Generator");
+            mnuPasswordGenerator.Click += (s, e) => OpenPasswordGenerator();
+
             // Add Dropbox sync option
             mnuDropboxSync = new ToolStripMenuItem("☁️ Dropbox Sync...");
             mnuDropboxSync.Click += (s, e) => OpenDropboxSync();
@@ -169,6 +173,10 @@ namespace DynamicBrowserPanels
             
             mnuUninstall = new ToolStripMenuItem("🗑️ Uninstall Application...");
             mnuUninstall.Click += (s, e) => InstallationManager.Uninstall();
+
+            // Add password generator option
+            mnuPasswordGenerator = new ToolStripMenuItem("🔐 Password Generator");
+            mnuPasswordGenerator.Click += (s, e) => OpenPasswordGenerator();
 
             contextMenu.Items.AddRange(new ToolStripItem[]
             {
@@ -214,10 +222,11 @@ namespace DynamicBrowserPanels
                 mnuKeepAwake,
                 new ToolStripSeparator(),
                 mnuManagePasswords,
+                mnuPasswordGenerator,
                 mnuDropboxSync,
                 new ToolStripSeparator(),
                 mnuInstall,
-                mnuUninstall
+                mnuUninstall,
             });
 
             contextMenu.Opening += ContextMenu_Opening;
@@ -529,6 +538,43 @@ namespace DynamicBrowserPanels
                 UrlHistoryManager.ClearTodaysHistory();
                 MessageBox.Show("Today's history cleared successfully.", "History",
                     MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+        }
+
+        /// <summary>
+        /// Opens the password generator
+        /// </summary>
+        private void OpenPasswordGenerator()
+        {
+            try
+            {
+                var currentTab = GetCurrentTab();
+                if (currentTab == null) return;
+
+                // Create the password generator HTML file
+                var htmlPath = PasswordGeneratorHelper.CreatePasswordGeneratorHtml();
+
+                // Navigate to the password generator
+                var url = LocalMediaHelper.FilePathToUrl(htmlPath);
+                NavigateToUrl(url);
+
+                // Set custom tab name
+                int selectedIndex = tabControl.SelectedIndex;
+                if (selectedIndex >= 0 && selectedIndex < _tabCustomNames.Count)
+                {
+                    _tabCustomNames[selectedIndex] = "Password Generator";
+                    currentTab.CustomName = "Password Generator";
+                    tabControl.TabPages[selectedIndex].Text = "Password Generator";
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"Failed to open password generator: {ex.Message}",
+                    "Password Generator Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error
+                );
             }
         }
     }

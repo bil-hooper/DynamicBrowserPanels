@@ -420,6 +420,18 @@ namespace DynamicBrowserPanels
                     {
                         HandleExportUrlList(json);
                     }
+                    else if (json.Contains("\"generatePassword\""))
+                    {
+                        HandleGeneratePassword(json);
+                    }
+                    else if (json.Contains("\"generateApplePassword\""))
+                    {
+                        HandleGenerateCellPhonePassword(json);
+                    }
+                    else if (json.Contains("\"generateXKCDPassword\""))
+                    {
+                        HandleGenerateXKCDPassword(json);
+                    }
                 }
             }
             catch
@@ -1137,6 +1149,180 @@ namespace DynamicBrowserPanels
                 if (_onlinePlaylist != null && _onlinePlaylist.Count > 0)
                     return PlaylistType.Online;
                 return PlaylistType.None;
+            }
+        }
+
+        /// <summary>
+        /// Handles generating a random password from JavaScript
+        /// </summary>
+        private async void HandleGeneratePassword(string json)
+        {
+            try
+            {
+                using (JsonDocument document = JsonDocument.Parse(json))
+                {
+                    int length = 32;
+                    bool includeSymbols = true;
+                    string excludeChars = "";
+                    bool appleStyle = false;
+                    bool addExclamation = false;
+
+                    if (document.RootElement.TryGetProperty("length", out JsonElement lengthElement))
+                    {
+                        length = lengthElement.GetInt32();
+                    }
+
+                    if (document.RootElement.TryGetProperty("includeSymbols", out JsonElement symbolsElement))
+                    {
+                        includeSymbols = symbolsElement.GetBoolean();
+                    }
+
+                    if (document.RootElement.TryGetProperty("excludeCharacters", out JsonElement excludeElement))
+                    {
+                        excludeChars = excludeElement.GetString() ?? "";
+                    }
+
+                    if (document.RootElement.TryGetProperty("appleStyle", out JsonElement appleStyleElement))
+                    {
+                        appleStyle = appleStyleElement.GetBoolean();
+                    }
+
+                    if (document.RootElement.TryGetProperty("addExclamationSuffix", out JsonElement exclamationElement))
+                    {
+                        addExclamation = exclamationElement.GetBoolean();
+                    }
+
+                    string password;
+
+                    // Format Apple-style if requested
+                    if (appleStyle)
+                    {
+                        password = StrongPasswordGeneratorForm.GenerateApplePassword(includeSymbols, excludeChars);
+                    }
+                    else
+                    {
+                        // Generate password using existing StrongPasswordGeneratorForm class
+                        password = StrongPasswordGeneratorForm.GenerateStrongPassword(
+                            length,
+                            includeSymbols,
+                            excludeChars,
+                            false // optimize parameter
+                        );
+
+                        // Add exclamation suffix if requested
+                        if (addExclamation && password.Length > 0)
+                        {
+                            password = password.Substring(0, password.Length - 1) + "!";
+                        }
+                    }
+
+                    // Send password back to webpage
+                    var response = new { type = "passwordGenerated", password = password };
+                    var responseJson = JsonSerializer.Serialize(response);
+                    _webView.CoreWebView2.PostWebMessageAsJson(responseJson);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error generating password: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Handles generating an Apple-style password from JavaScript
+        /// </summary>
+        private async void HandleGenerateCellPhonePassword(string json)
+        {
+            try
+            {
+                using (JsonDocument document = JsonDocument.Parse(json))
+                {
+                    int length = 32;
+                    bool includeSymbols = true;
+                    string excludeChars = "";
+                    bool appleStyle = false;
+                    bool addExclamation = false;
+
+                    if (document.RootElement.TryGetProperty("length", out JsonElement lengthElement))
+                    {
+                        length = lengthElement.GetInt32();
+                    }
+
+                    if (document.RootElement.TryGetProperty("includeSymbols", out JsonElement symbolsElement))
+                    {
+                        includeSymbols = symbolsElement.GetBoolean();
+                    }
+
+                    if (document.RootElement.TryGetProperty("excludeCharacters", out JsonElement excludeElement))
+                    {
+                        excludeChars = excludeElement.GetString() ?? "";
+                    }
+
+                    if (document.RootElement.TryGetProperty("appleStyle", out JsonElement appleStyleElement))
+                    {
+                        appleStyle = appleStyleElement.GetBoolean();
+                    }
+
+                    if (document.RootElement.TryGetProperty("addExclamationSuffix", out JsonElement exclamationElement))
+                    {
+                        addExclamation = exclamationElement.GetBoolean();
+                    }
+
+
+                    // Generate password using existing StrongPasswordGeneratorForm class
+                    string password = StrongPasswordGeneratorForm.GenerateStrongPassword(
+                        length,
+                        includeSymbols,
+                        excludeChars,
+                        true // optimize parameter
+                    );
+                    
+                    // Add exclamation suffix if requested
+                    if (addExclamation && password.Length > 0)
+                    {
+                        password = password.Substring(0, password.Length - 1) + "!";
+                    }
+
+                    // Send password back to webpage
+                    var response = new { type = "passwordGenerated", password = password };
+                    var responseJson = JsonSerializer.Serialize(response);
+                    _webView.CoreWebView2.PostWebMessageAsJson(responseJson);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error generating Cell Phone password: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Handles generating an XKCD-style password from JavaScript
+        /// </summary>
+        private async void HandleGenerateXKCDPassword(string json)
+        {
+            try
+            {
+                int wordCount = 4;
+
+                using (JsonDocument document = JsonDocument.Parse(json))
+                {
+                    if (document.RootElement.TryGetProperty("wordCount", out JsonElement wordCountElement))
+                    {
+                        wordCount = wordCountElement.GetInt32();
+                    }
+                }
+
+                // Generate XKCD password using NameList
+                string password = NameList.GetNames(wordCount);
+
+                // Send password back to webpage
+                var response = new { type = "passwordGenerated", password = password };
+                var responseJson = JsonSerializer.Serialize(response);
+                _webView.CoreWebView2.PostWebMessageAsJson(responseJson);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error generating XKCD password: {ex.Message}");
             }
         }
 
