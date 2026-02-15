@@ -1,5 +1,6 @@
 using System;
 using System.Drawing;
+using System.Linq;
 using System.Windows.Forms;
 using Microsoft.Web.WebView2.WinForms;
 using Microsoft.Web.WebView2.Core;
@@ -19,6 +20,11 @@ namespace DynamicBrowserPanels
 
         public DropboxAuthForm(string appKey)
         {
+            if (string.IsNullOrWhiteSpace(appKey))
+            {
+                throw new ArgumentException("App key cannot be null or empty", nameof(appKey));
+            }
+
             this.appKey = appKey;
             InitializeComponent();
             InitializeAsync();
@@ -44,6 +50,11 @@ namespace DynamicBrowserPanels
             {
                 await webView.EnsureCoreWebView2Async(null);
 
+                if (webView?.CoreWebView2 == null)
+                {
+                    throw new InvalidOperationException("Failed to initialize WebView2");
+                }
+
                 webView.CoreWebView2.NavigationStarting += CoreWebView2_NavigationStarting;
 
                 // Dropbox OAuth URL with token response type
@@ -54,7 +65,7 @@ namespace DynamicBrowserPanels
             catch (Exception ex)
             {
                 MessageBox.Show(
-                    $"Failed to initialize authentication:\n{ex.Message}",
+                    $"Failed to initialize authentication:\n{ex.Message}\n\nStack Trace:\n{ex.StackTrace}",
                     "Authentication Error",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Error
@@ -66,45 +77,82 @@ namespace DynamicBrowserPanels
 
         private void CoreWebView2_NavigationStarting(object sender, CoreWebView2NavigationStartingEventArgs e)
         {
-            // Check if we got redirected with the access token
-            if (e.Uri.StartsWith(RedirectUri))
+            try
             {
-                e.Cancel = true;
+                if (string.IsNullOrEmpty(e?.Uri))
+                {
+                    return;
+                }
 
-                // Extract access token from URL fragment
-                var uri = new Uri(e.Uri.Replace("#", "?"));
-                var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
-                AccessToken = query["access_token"];
+                // Check if we got redirected with the access token
+                if (e.Uri.StartsWith(RedirectUri, StringComparison.OrdinalIgnoreCase))
+                {
+                    e.Cancel = true;
 
-                if (!string.IsNullOrEmpty(AccessToken))
-                {
-                    DialogResult = DialogResult.OK;
-                    Close();
+                    // Extract access token from URL fragment (after #)
+                    string accessToken = null;
+                    string error = null;
+                    string errorDescription = null;
+
+                    // Parse the fragment manually (more reliable than HttpUtility)
+                    int hashIndex = e.Uri.IndexOf('#');
+                    if (hashIndex >= 0 && hashIndex < e.Uri.Length - 1)
+                    {
+                        string fragment = e.Uri.Substring(hashIndex + 1);
+                        var parameters = fragment.Split('&')
+                            .Select(param => param.Split('='))
+                            .Where(parts => parts.Length == 2)
+                            .ToDictionary(
+                                parts => Uri.UnescapeDataString(parts[0]),
+                                parts => Uri.UnescapeDataString(parts[1]),
+                                StringComparer.OrdinalIgnoreCase
+                            );
+
+                        parameters.TryGetValue("access_token", out accessToken);
+                        parameters.TryGetValue("error", out error);
+                        parameters.TryGetValue("error_description", out errorDescription);
+                    }
+
+                    if (!string.IsNullOrEmpty(accessToken))
+                    {
+                        AccessToken = accessToken;
+                        DialogResult = DialogResult.OK;
+                        Close();
+                    }
+                    else if (!string.IsNullOrEmpty(error))
+                    {
+                        MessageBox.Show(
+                            $"Authentication failed:\n{errorDescription ?? error}",
+                            "Authentication Error",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Error
+                        );
+                        DialogResult = DialogResult.Cancel;
+                        Close();
+                    }
+                    else
+                    {
+                        MessageBox.Show(
+                            $"Failed to retrieve access token.\n\nRedirect URI: {e.Uri}",
+                            "Authentication Error",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Error
+                        );
+                        DialogResult = DialogResult.Cancel;
+                        Close();
+                    }
                 }
-                else if (e.Uri.Contains("error="))
-                {
-                    var error = query["error"];
-                    var errorDescription = query["error_description"];
-                    MessageBox.Show(
-                        $"Authentication failed:\n{errorDescription ?? error}",
-                        "Authentication Error",
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Error
-                    );
-                    DialogResult = DialogResult.Cancel;
-                    Close();
-                }
-                else
-                {
-                    MessageBox.Show(
-                        "Failed to retrieve access token",
-                        "Authentication Error",
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Error
-                    );
-                    DialogResult = DialogResult.Cancel;
-                    Close();
-                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"Error during authentication:\n{ex.Message}\n\nStack Trace:\n{ex.StackTrace}",
+                    "Authentication Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error
+                );
+                DialogResult = DialogResult.Cancel;
+                Close();
             }
         }
     }

@@ -368,7 +368,7 @@ namespace DynamicBrowserPanels
 
         private void LoadSettings()
         {
-            settings = AppConfiguration.DropboxSyncSettings;
+            settings = AppConfiguration.DropboxSyncSettings ?? new DropboxSyncSettings();
 
             enableSyncCheckBox.Checked = settings.SyncEnabled;
             syncOnStartupCheckBox.Checked = settings.SyncOnStartup;
@@ -391,6 +391,11 @@ namespace DynamicBrowserPanels
 
         private void SaveButton_Click(object sender, EventArgs e)
         {
+            if (settings == null)
+            {
+                settings = new DropboxSyncSettings();
+            }
+
             settings.SyncEnabled = enableSyncCheckBox.Checked;
             settings.SyncOnStartup = syncOnStartupCheckBox.Checked;
             settings.SyncOnShutdown = syncOnShutdownCheckBox.Checked;

@@ -455,59 +455,64 @@ namespace DynamicBrowserPanels
 
                 do
                 {
-                    foreach (var entry in listResult.Entries)
+                    // Add null check for listResult.Entries
+                    if (listResult?.Entries != null)
                     {
-                        if (entry.IsFile)
+                        foreach (var entry in listResult.Entries)
                         {
-                            var fileEntry = entry.AsFile;
-                            var dropboxModified = fileEntry.ServerModified.ToUniversalTime();
-
-                            // Skip files that haven't been modified since last sync (incremental mode)
-                            if (sinceDate.HasValue && dropboxModified <= sinceDate.Value.ToUniversalTime())
+                            if (entry.IsFile)
                             {
-                                continue;
-                            }
+                                var fileEntry = entry.AsFile;
+                                var dropboxModified = fileEntry.ServerModified.ToUniversalTime();
 
-                            var relativePath = entry.PathDisplay.Substring(dropboxFolder.Length + 1);
-                            var localPath = Path.Combine(localFolder, relativePath.Replace("/", "\\"));
-
-                            try
-                            {
-                                // Check if we should download
-                                bool shouldDownload = true;
-
-                                if (File.Exists(localPath))
+                                // Skip files that haven't been modified since last sync (incremental mode)
+                                if (sinceDate.HasValue && dropboxModified <= sinceDate.Value.ToUniversalTime())
                                 {
-                                    var localModified = File.GetLastWriteTimeUtc(localPath);
-
-                                    // Only download if Dropbox is newer
-                                    shouldDownload = dropboxModified > localModified;
+                                    continue;
                                 }
 
-                                if (shouldDownload)
+                                var relativePath = entry.PathDisplay.Substring(dropboxFolder.Length + 1);
+                                var localPath = Path.Combine(localFolder, relativePath.Replace("/", "\\"));
+
+                                try
                                 {
-                                    // Ensure directory exists
-                                    var directory = Path.GetDirectoryName(localPath);
-                                    if (!Directory.Exists(directory))
+                                    // Check if we should download
+                                    bool shouldDownload = true;
+
+                                    if (File.Exists(localPath))
                                     {
-                                        Directory.CreateDirectory(directory);
+                                        var localModified = File.GetLastWriteTimeUtc(localPath);
+
+                                        // Only download if Dropbox is newer
+                                        shouldDownload = dropboxModified > localModified;
                                     }
 
-                                    // Download file
-                                    using (var response = await dbx.Files.DownloadAsync(entry.PathDisplay))
+                                    if (shouldDownload)
                                     {
-                                        var content = await response.GetContentAsByteArrayAsync();
-                                        File.WriteAllBytes(localPath, content);
+                                        // Ensure directory exists
+                                        // Add null check in PullDropboxFilesAsync for directory path
+                                        var directory = Path.GetDirectoryName(localPath);
+                                        if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+                                        {
+                                            Directory.CreateDirectory(directory);
+                                        }
 
-                                        // Set the last write time to match Dropbox
-                                        File.SetLastWriteTimeUtc(localPath, dropboxModified);
+                                        // Download file
+                                        using (var response = await dbx.Files.DownloadAsync(entry.PathDisplay))
+                                        {
+                                            var content = await response.GetContentAsByteArrayAsync();
+                                            File.WriteAllBytes(localPath, content);
+
+                                            // Set the last write time to match Dropbox
+                                            File.SetLastWriteTimeUtc(localPath, dropboxModified);
+                                        }
                                     }
                                 }
-                            }
-                            catch
-                            {
-                                // Skip files that fail to download
-                                continue;
+                                catch
+                                {
+                                    // Skip files that fail to download
+                                    continue;
+                                }
                             }
                         }
                     }

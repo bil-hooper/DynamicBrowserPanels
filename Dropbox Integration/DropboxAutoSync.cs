@@ -120,9 +120,9 @@ namespace DynamicBrowserPanels
                     mode: DropboxSyncManagerStatic.SyncMode.Incremental
                 );
 
-                if (result.Success && result.SyncTime.HasValue)
+                // Add safer nullable access
+                if (result?.Success == true && result.SyncTime.HasValue)
                 {
-                    // Update the last push time
                     settings.LastPushTime = result.SyncTime.Value;
                     settings.LastSyncTime = result.SyncTime.Value;
                     AppConfiguration.DropboxSyncSettings = settings;
